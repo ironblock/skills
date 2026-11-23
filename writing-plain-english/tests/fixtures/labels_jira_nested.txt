@@ -1,0 +1,3 @@
+* Verified: the copy job ended at noon.
+** Note: the spare host ran it.
+** Step: it wrote a file for each folder.

@@ -1,0 +1,1 @@
+Scratch rebuild of a plain-English lint. Nothing here comes from any organization's private work. Nothing leaves this repo without the maintainer's review. Park rule: see the maintainer's plan (private).
