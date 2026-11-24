@@ -1,7 +1,8 @@
 """inventory FILE: every token and word-class occurrence with its line, as a checklist."""
+import time
 import unittest
 
-from helpers import run, run_json
+from helpers import FIXTURES, load_module, run, run_json
 
 TOKEN_CLASSES = ["numbers", "code-spans", "code-blocks", "paths", "quoted-strings",
                  "links", "hashes", "bracket-labels"]
@@ -100,6 +101,88 @@ class InventoryCounters(unittest.TestCase):
         _, d = run_json("inventory", "even_so.md")
         self.assertEqual(pairs(d["words"]["reasons"], "word"), [])
         self.assertEqual(pairs(d["words"]["counters"], "word"), [("Even so", 1)])
+
+
+
+def counters(name):
+    _, d = run_json("inventory", name)
+    return pairs(d["words"]["counters"], "word")
+
+
+class CounterRoles(unittest.TestCase):
+    """A counter word in another role is not a counter-clause. Each fixture's
+    line 2 holds the same word as a counter-clause, which is still counted."""
+
+    def test_all_but(self):
+        """RED on b24a2d58: the parent counts the `but` of `All but one` as a counter-clause."""
+        self.assertEqual(counters("role_all_but.md"), [("but", 2)])
+
+    def test_anything_but(self):
+        """RED on b24a2d58: the parent counts the `but` of `anything but` as a counter-clause."""
+        self.assertEqual(counters("role_anything_but.md"), [("but", 2)])
+
+    def test_nothing_but(self):
+        """RED on b24a2d58: the parent counts the `but` of `nothing but` as a counter-clause."""
+        self.assertEqual(counters("role_nothing_but.md"), [("but", 2)])
+
+    def test_not_only_but_also(self):
+        """RED on b24a2d58: the parent counts the `but` of `not only ... but also` as a counter-clause."""
+        self.assertEqual(counters("role_not_only.md"), [("but", 2)])
+
+    def test_not_yet(self):
+        """RED on b24a2d58: the parent counts the `yet` of `not yet` as a counter-clause."""
+        self.assertEqual(counters("role_not_yet.md"), [("yet", 2)])
+
+    def test_yet_another(self):
+        """RED on b24a2d58: the parent counts the `yet` of `yet another` as a counter-clause."""
+        self.assertEqual(counters("role_yet_another.md"), [("yet", 2)])
+
+    def test_as_yet(self):
+        """RED on b24a2d58: the parent counts the `yet` of `as yet` as a counter-clause."""
+        self.assertEqual(counters("role_as_yet.md"), [("yet", 2)])
+
+    def test_as_though_but_not_even_though(self):
+        """RED on b24a2d58: the parent counts the `though` of `as though` as a counter-clause.
+
+        The control on line 2 is `Even though`, which stays a counter-clause.
+        """
+        self.assertEqual(counters("role_as_though.md"), [("though", 2)])
+
+    def test_however_before_a_degree_word(self):
+        """RED on b24a2d58: the parent counts the `However` of `However long the copy takes` as a counter-clause."""
+        self.assertEqual(counters("role_however_degree.md"), [("However", 2)])
+
+    def test_however_before_a_pronoun_and_verb(self):
+        """RED on b24a2d58: the parent counts the `However` of `However you start the service` as a counter-clause."""
+        self.assertEqual(counters("role_however_pronoun.md"), [("however", 2)])
+
+
+class MultiWordClaims(unittest.TestCase):
+    def test_only_after_is_one_condition(self):
+        """RED on b24a2d58: the parent counts the `only` of `only after` as a hedge as well as a condition.
+
+        The control on line 2 is a plain `Only`, which stays a hedge.
+        """
+        _, d = run_json("inventory", "only_after.md")
+        self.assertEqual(pairs(d["words"]["conditions"], "word"), [("only after", 1)])
+        self.assertEqual(pairs(d["words"]["hedges"], "word"), [("Only", 2)])
+
+
+class Scale(unittest.TestCase):
+    def test_word_counts_scale_linearly(self):
+        """RED on b24a2d58: the parent checks each word hit against every counter-clause span, so a 370 KB text takes more than 2.5 s.
+
+        The text repeats one fixture line 3600 times. Where this test was
+        written, the parent took about 11 s and the linear count about 0.6 s,
+        so the bound sits a factor of about 4 from each.
+        """
+        mod = load_module()
+        text = (FIXTURES / "scale_unit.md").read_text(encoding="utf-8") * 3600
+        start = time.perf_counter()
+        words = mod.extract(text)["words"]
+        elapsed = time.perf_counter() - start
+        self.assertEqual(len(words["counters"]), 3 * 3600)
+        self.assertLess(elapsed, 2.5)
 
 
 if __name__ == "__main__":

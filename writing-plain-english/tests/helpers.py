@@ -44,6 +44,13 @@ def findings_of(report, kind):
     return [(f["kind"], f["line"]) for f in report["findings"] if f["kind"] == kind]
 
 
+LABEL_KINDS = {"label-twice", "label-marker", "label-unknown"}
+
+
+def label_findings(report):
+    return [(f["kind"], f["line"]) for f in report["findings"] if f["kind"] in LABEL_KINDS]
+
+
 def load_module():
     spec = importlib.util.spec_from_file_location("lint_under_test", LINT)
     mod = importlib.util.module_from_spec(spec)

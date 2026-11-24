@@ -3,13 +3,7 @@ Labels are read plain (Verified:) or bold (**Verified:**, **Verified**:, Jira
 *Verified:*), and a list item includes its continuation lines."""
 import unittest
 
-from helpers import kinds, lint_report
-
-LABEL_KINDS = {"label-twice", "label-marker", "label-unknown"}
-
-
-def label_findings(report):
-    return [(f["kind"], f["line"]) for f in report["findings"] if f["kind"] in LABEL_KINDS]
+from helpers import kinds, label_findings, lint_report
 
 
 class LabelChecks(unittest.TestCase):

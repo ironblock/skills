@@ -71,6 +71,15 @@ class Source(unittest.TestCase):
         # Report only which phrases are present: the source must not reach the run's output.
         self.assertEqual(("baseline" in text, "not a detector" in text), (True, True))
 
+    def test_counter_roles_are_constants(self):
+        """RED on b24a2d58: the parent has no NOT_COUNTERS constant of counter words in other roles."""
+        mod = load_module()
+        patterns = mod.NOT_COUNTERS
+        self.assertIsInstance(patterns, tuple)
+        for p in patterns:
+            self.assertIsInstance(p, str)
+            self.assertIn("w", re.compile(p).groupindex, "each pattern names the counter word as group w")
+
     def test_default_labels_constant(self):
         """RED on v1: v1 has no label set."""
         mod = load_module()

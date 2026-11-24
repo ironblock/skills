@@ -30,6 +30,10 @@ class StrictLint(unittest.TestCase):
         """RED on v1: v1 has no --strict."""
         self.assertEqual(status("--strict", "labels_good.md", "semicolon.md"), 1)
 
+    def test_long_item_fails(self):
+        """RED on b24a2d58: the parent has no long-item class, so a 5-sentence item exits 0 under --strict."""
+        self.assertEqual(status("--strict", "long_item_5.md"), 1)
+
     def test_findings_without_strict_exit_0(self):
         """Guard, passes on v1: findings are advisory without --strict."""
         self.assertEqual(status("long_sentence_26.md", "labels_marker.md"), 0)

@@ -1,0 +1,5 @@
+* Observed: the service printed a warning at start-up.
+{noformat}
+warn: config file is older than the binary
+{noformat}
+Inferred: someone copied an old config file to the host.

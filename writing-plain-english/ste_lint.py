@@ -9,6 +9,7 @@ Usage:
 Lint checks:
   long-sentence   a sentence of more than 25 words
   long-paragraph  a paragraph of more than 4 sentences
+  long-item       a list item of more than 4 sentences
   semicolon       a semicolon inside a sentence
   label-twice     a list item where two sentences start with an evidence label
   label-marker    a bracket marker such as [V] left in a list item
@@ -23,11 +24,17 @@ DEFAULT_LABELS unless --labels names others. A label is read plain
 
 Before the checks, the lint skips a leading YAML frontmatter block, unwraps
 blockquotes, and removes code (fenced, {code}, {noformat}, `...`, {{...}}),
-URLs and link targets. Headings, table rows and whole-line bold labels are
-not linted. A list item takes in the lines under it, indented or not, up to
-a blank line, another list marker, or a heading, table row or bold label
-line. Each finding names the line it came from, as L<n>. Deterministic
-findings print first and heuristic ones after, each group in line order.
+URLs and link targets. Headings, table rows, thematic breaks, code blocks
+and whole-line bold labels are not linted. A paragraph or a list item takes
+in the paragraph text under it, indented or not (a Markdown lazy
+continuation). It ends at a blank line, a list marker, a heading (Markdown
+"#" or Jira hN.), a table row (led by "|", or under a GFM header row such
+as "a | b" over "---|---"), a thematic break (---, ***, ___, Jira ----), a
+code block (the line after it starts afresh), a line that opens a
+blockquote ("> " one level deeper, or Jira bq.), or a bold label line. A
+line inside the same blockquote continues it. Each finding names the line
+it came from, as L<n>. Deterministic findings print first and heuristic
+ones after, each group in line order.
 
 --compare OLD NEW lists, for each token class, the tokens that disappeared
 and the tokens that appeared (a multiset difference). It also counts the
@@ -52,10 +59,12 @@ import sys
 
 # Word classes for --compare and inventory. These lists are a baseline, not a
 # detector: each is a fixed set of surface words, counted per class over the
-# whole text. A word can be counted where it plays another role ("not yet"
-# counts a counter-clause), and an equal count does not prove an equal claim.
-# A multi-word entry matches across any whitespace; "n't" matches as a word
-# ending ("don't", "isn’t").
+# whole text. A word can be counted where it plays another role (the "so" of
+# "so many" counts a reason), and an equal count does not prove an equal
+# claim. A multi-word entry matches across any whitespace and claims its words
+# in every class: "only after" is one condition, not also a hedge, and the
+# "so" of "even so" is not a reason. "n't" matches as a word ending ("don't",
+# "isn’t").
 HEDGES = ("may", "might", "could", "possibly", "probably", "likely", "only", "just",
           "by itself", "alone", "appears", "seems", "suggests")
 CONDITIONS = ("if", "unless", "only after", "otherwise", "when", "until", "except")
@@ -66,6 +75,27 @@ COUNTERS = ("but", "however", "although", "though", "yet", "whereas", "neverthel
 WORD_CLASSES = {"hedges": HEDGES, "conditions": CONDITIONS,
                 "reasons": REASONS, "negations": NEGATIONS, "counters": COUNTERS}
 
+# Counter words in roles that are not counter-clauses: "all but one" (all
+# except one), "not only ... but also" (and), "not yet" (still not), "yet
+# another", "as yet", "as though" (as if), and a manner "however" ("however
+# long it takes", "however you run it"). Each pattern matches one such use and
+# names the counter word as group w; that word is not counted. Any other
+# "however" ("However, the run failed") is counted, and "even though" matches
+# none of them, so it stays a counter-clause.
+HOWEVER_DEGREE = ("much", "many", "long", "often", "far", "hard", "few", "little", "large",
+                  "small", "big", "good", "well", "fast", "slow", "slowly", "quickly",
+                  "carefully", "early", "late")
+NOT_COUNTERS = (
+    r"\b(?:all|anything|nothing)\s+(?P<w>but)\b",
+    r"\bnot\s+only\b[^.!?]*?\b(?P<w>but)\s+also\b",
+    r"\bnot\s+(?P<w>yet)\b",
+    r"\b(?P<w>yet)\s+another\b",
+    r"\bas\s+(?P<w>yet)\b",
+    r"\bas\s+(?P<w>though)\b",
+    r"\b(?P<w>however)\s+(?:" + "|".join(HOWEVER_DEGREE) + r")\b",
+    r"\b(?P<w>however)\s+(?:you|we|they)\s+[a-z]",
+)
+
 # Evidence labels for the label checks; --labels replaces the set.
 DEFAULT_LABELS = ("Verified", "Reported", "Observed", "Inferred", "Hypothesis", "Unknown")
 
@@ -74,7 +104,7 @@ MAX_PARAGRAPH_SENTENCES = 4
 
 TOKEN_CLASSES = ("numbers", "code-spans", "code-blocks", "paths", "quoted-strings",
                  "links", "hashes", "bracket-labels")
-DETERMINISTIC = {"long-sentence", "long-paragraph", "semicolon",
+DETERMINISTIC = {"long-sentence", "long-paragraph", "long-item", "semicolon",
                  "label-twice", "label-marker", "label-unknown"}
 
 FUNCTION = set("""a an the and or but nor so yet for of to in on at by with from into onto over under
@@ -100,7 +130,8 @@ invoke invokes replace replaces add implement remain""".split())
 
 # Markup patterns, shared by the lint and by --compare/inventory.
 FRONTMATTER = r"\A\ufeff?---[ \t]*\n(?:.*?\n)?---[ \t]*(?=\n|\Z)"
-BLOCKQUOTE = r"(?m)^[ \t]{0,3}(?:>[ \t]?)+"
+QUOTE_PREFIX = r"[ \t]{0,3}(?:>[ \t]?)+"
+BLOCKQUOTE = r"(?m)^" + QUOTE_PREFIX
 CODE_BLOCKS = (r"\{code[^}]*\}(.*?)\{code\}", r"\{noformat\}(.*?)\{noformat\}", r"```(.*?)```")
 CODE_SPANS = (r"\{\{(.*?)\}\}", r"`([^`]*)`")
 # A citation or metadata span such as [S: file.py:12; other.py:40] is
@@ -121,6 +152,12 @@ PATH = r"""(?<![\w./~:@+-])(?:
     )(?<!\.)(?![\w/@+-])"""  # a final "." ends the sentence, not the path
 HASH = r"\b[0-9a-fA-F]{7,}\b"
 LIST_MARKER = r"(?m)^[ \t]*\d+[.)](?=[ \t])"
+# Block-level lines that end a paragraph or a list item (see _block_parts).
+THEMATIC_BREAK = r"^(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$"  # also Jira ----
+TABLE_DELIMITER = r"^\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?$"  # with a "|" in it
+CODE_OPENERS = ("```", "{code", "{noformat}")  # where a code block's source starts
+CODE_WORD = " CODE. "  # what strip_markup leaves of a code block
+JIRA_QUOTE = r"^bq\.\s"
 NUMBER = r"(?<![\w.])[vV]?\d(?:\w|[.,:/-](?=\d))*"
 
 # Sentence ends: [.!?], then any closing quotes or brackets, then space, then
@@ -140,9 +177,9 @@ WORD_COLON = LABEL_FORMS.format(w=r"([A-Z][A-Za-z]+)")
 _SUBS = [
     (FRONTMATTER, "", re.S, None),
     (BLOCKQUOTE, "", 0, None),
-    (CODE_BLOCKS[0], " CODE. ", re.S, None),
-    (CODE_BLOCKS[1], " CODE. ", re.S, None),
-    (CODE_BLOCKS[2], " CODE. ", re.S, None),
+    (CODE_BLOCKS[0], CODE_WORD, re.S, None),
+    (CODE_BLOCKS[1], CODE_WORD, re.S, None),
+    (CODE_BLOCKS[2], CODE_WORD, re.S, None),
     (CODE_SPANS[0], "X", 0, None),
     (CODE_SPANS[1], "X", 0, None),
     (CITATION, " ", 0, None),
@@ -195,25 +232,30 @@ def strip_markup(text: str) -> str:
     return strip_markup_map(text)[0]
 
 
-def paragraphs(text: str, offs=None):
+def paragraphs(text: str, offs=None, raw=None):
     """Yield (kind, text, offs, level) blocks; offs parallels text.
 
-    kind is "para", "item" (each list item is its own block, with the lines
-    under it up to a blank line, a list marker or a skipped line) or "sep" (a
-    skipped heading, bold label or table line, which ends a list). level is
-    an item's (indent, marker), None for the other kinds; the marker is the
-    bullet as written ("*", "**", "#", "-") or "1." / "1)" for a number.
+    text is markup-free text, offs maps it to raw (its source), and raw is
+    read for what stripping removed: blockquote prefixes and code block
+    markup. Without raw, text is its own source. kind is "para", "item"
+    (each list item is its own block; _block_parts says where one ends) or
+    "sep" (a skipped heading, bold label, table row, thematic break or code
+    block line, which ends a list). level is an item's (indent, marker), None
+    for the other kinds; the marker is the bullet as written ("*", "**",
+    "#", "-") or "1." / "1)" for a number.
     """
     if offs is None:
         offs = list(range(len(text)))
+    if raw is None:
+        raw = text
     # Dialect sniff: a document with Jira markers treats '# ' lines as
     # ordered-list steps; pure Markdown treats them as headings.
     wiki = bool(re.search(r"(?m)^h[1-6]\.\s", text) or "{{" in text)
     pos = 0
     for m in re.finditer(r"\n\s*\n", text):
-        yield from _block_parts(text[pos:m.start()], offs[pos:m.start()], wiki)
+        yield from _block_parts(text[pos:m.start()], offs[pos:m.start()], wiki, raw)
         pos = m.end()
-    yield from _block_parts(text[pos:], offs[pos:], wiki)
+    yield from _block_parts(text[pos:], offs[pos:], wiki, raw)
 
 
 def _skipped(s, wiki):
@@ -223,40 +265,70 @@ def _skipped(s, wiki):
                 or s.startswith("|"))
 
 
-def _block_parts(block, boffs, wiki=False):
-    """Paragraphs, items and seps of one blank-line-free block. A line under a
-    list item continues that item, indented or not (a Markdown lazy
-    continuation), until a list marker or a skipped line."""
+def _quote_depth(raw, src):
+    """The blockquote depth (number of ">") of the source line holding src."""
+    m = re.compile(QUOTE_PREFIX).match(raw, raw.rfind("\n", 0, src) + 1)
+    return m.group(0).count(">") if m else 0
+
+
+def _block_parts(block, boffs, wiki, raw):
+    """Paragraphs, items and seps of one blank-line-free block.
+
+    A line continues the paragraph or item above it, indented or not (a
+    Markdown lazy continuation), only when it is paragraph text. A list
+    marker starts an item. A sep ends the block: a skipped line, a table row
+    (a GFM header row is a "|" line over a delimiter row such as "---|---";
+    the "|" lines under it are rows), a thematic break, or a code block's
+    line (the line after it starts a new paragraph). A Jira bq. line, or a
+    line one blockquote level deeper than the block's first line, starts a
+    new paragraph. A line at the same or a shallower level continues the
+    block: inside one blockquote, or lazily after it.
+    """
+    lines = []
+    for m in re.finditer(r"[^\n]+", block):
+        line = m.group(0)
+        if line.strip():
+            indent = len(line) - len(line.lstrip())
+            lines.append((line.strip(), indent, m.start() + indent))
     buf, buf_offs, level = [], [], None  # level is set while buf holds an item
+    depth, table = 0, False  # the block's blockquote depth; inside a GFM table
 
     def flush():
         if buf:
             kind, t, o, _ = _join(buf, buf_offs, "item" if level else "para")
             yield kind, t, o, level
 
-    for m in re.finditer(r"[^\n]+", block):
-        line = m.group(0)
-        if not line.strip():
-            continue
-        s = line.strip()
-        indent = len(line) - len(line.lstrip())
-        soff = m.start() + indent
-        if _skipped(s, wiki):
+    for i, (s, indent, soff) in enumerate(lines):
+        src = boffs[soff]
+        header = i + 1 < len(lines) and _delimiter_row(lines[i + 1][0])
+        table = "|" in s and (table or header)
+        code = s == CODE_WORD.strip() and raw.startswith(CODE_OPENERS, src)
+        if table or code or _skipped(s, wiki) or re.match(THEMATIC_BREAK, s):
             yield from flush()
             buf, buf_offs, level = [], [], None
             yield "sep", "", [], None
             continue
+        d = _quote_depth(raw, src)
         mi = re.match(ITEM, s)
         if mi:
             yield from flush()
             t = mi.group(2)
             o = soff + mi.start(2)
             marker = re.sub(r"\d+", "1", mi.group(1))
-            buf, buf_offs, level = [t], [boffs[o:o + len(t)]], (indent, marker)
-        else:
-            buf.append(s)
-            buf_offs.append(boffs[soff:soff + len(s)])
+            buf, buf_offs, level, depth = [t], [boffs[o:o + len(t)]], (indent, marker), d
+            continue
+        if buf and (d > depth or re.match(JIRA_QUOTE, s)):
+            yield from flush()
+            buf, buf_offs, level = [], [], None
+        if not buf:
+            depth = d
+        buf.append(s)
+        buf_offs.append(boffs[soff:soff + len(s)])
     yield from flush()
+
+
+def _delimiter_row(s):
+    return "|" in s and bool(re.match(TABLE_DELIMITER, s))
 
 
 def _join(buf, buf_offs, kind):
@@ -375,7 +447,7 @@ def lint(name: str, raw: str, labels=DEFAULT_LABELS):
 
     nsent = 0
     run = 0
-    for kind, block, boffs, level in paragraphs(text, offs):
+    for kind, block, boffs, level in paragraphs(text, offs, raw):
         if kind == "item":
             items.append((block, boffs, level, run))
         else:
@@ -383,8 +455,9 @@ def lint(name: str, raw: str, labels=DEFAULT_LABELS):
         if kind == "sep":
             continue
         sents = sentences_map(block, boffs)
-        if kind == "para" and len(sents) > MAX_PARAGRAPH_SENTENCES:
-            findings.append(("long-paragraph", f"{len(sents)} sentences: {block[:70]}…",
+        if len(sents) > MAX_PARAGRAPH_SENTENCES:  # the same limit for an item
+            findings.append(("long-paragraph" if kind == "para" else "long-item",
+                             f"{len(sents)} sentences: {block[:70]}…",
                              line_of(boffs[0]) if boffs else 0))
         for s, soffs in sents:
             n = len(words(s))
@@ -432,7 +505,8 @@ def _hash_token(m):
 
 
 def _word_re(entries):
-    alts = []
+    """One pattern for entries; with no entries, a pattern that never matches."""
+    alts = [r"(?!)"] if not entries else []
     for e in sorted(entries, key=len, reverse=True):
         if e == "n't":
             alts.append(r"(?<=[A-Za-z])n['’]t(?![\w'’])")
@@ -507,14 +581,27 @@ def extract(raw: str):
     tokens = {c: [(t, line_of(pos)) for pos, t in sorted(found[c], key=lambda x: x[0])]
               for c in TOKEN_CLASSES}
     prose_text = "".join(prose)
-    # A counter-clause claims its words: the "so" of "even so" is not a reason.
-    claimed = [m.span() for m in _word_re(COUNTERS).finditer(prose_text)]
+    # A multi-word entry claims its words in every class: the multi-word
+    # entries are matched on the prose and then blanked, and the single-word
+    # entries are matched on what is left. A counter word in another role
+    # (NOT_COUNTERS) is blanked for the counters class only. Each step is one
+    # pass over the text.
+    multi = {c: list(_word_re([e for e in entries if " " in e]).finditer(prose_text))
+             for c, entries in WORD_CLASSES.items()}
+    rest = list(prose_text)
+    for ms in multi.values():
+        for m in ms:
+            blank(rest, m.start(), m.end())
+    left = dict.fromkeys(WORD_CLASSES, "".join(rest))
+    for p in NOT_COUNTERS:
+        for m in re.finditer(p, prose_text, re.I):
+            blank(rest, *m.span("w"))
+    left["counters"] = "".join(rest)
     word_hits = {}
     for c, entries in WORD_CLASSES.items():
+        singles = _word_re([e for e in entries if " " not in e]).finditer(left[c])
         hits = []
-        for m in _word_re(entries).finditer(prose_text):
-            if c != "counters" and any(a <= m.start() and m.end() <= b for a, b in claimed):
-                continue
+        for m in sorted([*multi[c], *singles], key=lambda m: m.start()):
             written = _collapse(m.group(0))
             hits.append((written, written.lower().replace("’", "'"), line_of(m.start())))
         word_hits[c] = hits

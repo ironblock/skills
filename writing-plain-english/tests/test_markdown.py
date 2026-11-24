@@ -1,8 +1,9 @@
 """How the lint reads Markdown: sentence ends, blockquotes, frontmatter,
-bold label lines, `1)` lists and list items wrapped across lines."""
+bold label lines, `1)` lists, list items wrapped across lines, the lines
+that end an item or a paragraph, and the sentence limit for items."""
 import unittest
 
-from helpers import findings_of, kinds, lint_report
+from helpers import findings_of, kinds, label_findings, lint_report
 
 
 class SentenceEnds(unittest.TestCase):
@@ -122,6 +123,109 @@ class WrappedItems(unittest.TestCase):
         _, r = lint_report("wrap_jira_heading.txt")
         self.assertEqual(findings_of(r, "long-sentence"), [])
         self.assertEqual(r["sentences"], 1)
+
+
+class ItemBoundaries(unittest.TestCase):
+    """A list item continues only with paragraph text. A line that opens
+    another block ends it, and so does the line after a closed code block."""
+
+    def assert_two_sentences_no_finding(self, name):
+        _, r = lint_report(name)
+        self.assertEqual(kinds(r), [])
+        self.assertEqual(r["sentences"], 2)
+
+    def test_dash_rule_ends_an_item(self):
+        """RED on b24a2d58: the parent takes a `---` rule and the line after it into the item, so two sentences read as one of 28 words."""
+        self.assert_two_sentences_no_finding("item_rule_dash.md")
+
+    def test_star_rule_ends_a_list(self):
+        """RED on b24a2d58: the parent takes a `***` rule into the item above, so the list goes on and `Probably:` has a `Verified:` sibling."""
+        _, r = lint_report("item_rule_star.md")
+        self.assertEqual(kinds(r), [])
+        self.assertEqual(r["sentences"], 2)
+
+    def test_underscore_rule_ends_an_item(self):
+        """RED on b24a2d58: the parent takes a `___` rule and the line after it into the item, so two sentences read as one of 32 words."""
+        self.assert_two_sentences_no_finding("item_rule_underscore.md")
+
+    def test_jira_rule_ends_an_item(self):
+        """RED on b24a2d58: the parent takes a Jira `----` rule and the line after it into the item, so two sentences read as one of 30 words."""
+        self.assert_two_sentences_no_finding("item_rule_jira.txt")
+
+    def test_rule_ends_a_paragraph(self):
+        """RED on b24a2d58: the parent joins the line after a `___` rule to the paragraph above, so two sentences read as one of 29 words."""
+        self.assert_two_sentences_no_finding("para_rule.md")
+
+    def test_blockquote_line_ends_an_item(self):
+        """RED on b24a2d58: the parent removes the `>` before it splits blocks, so the quoted `Hypothesis:` joins the item as a second label."""
+        _, r = lint_report("item_quote.md")
+        self.assertEqual(label_findings(r), [])
+        self.assertEqual(r["sentences"], 2)
+
+    def test_continuation_inside_one_blockquote_joins(self):
+        """Guard, passes on b24a2d58: a continuation line inside the item's own blockquote is still part of the item."""
+        _, r = lint_report("item_quote_inside.md")
+        self.assertEqual(label_findings(r), [("label-twice", 1)])
+
+    def test_lazy_line_after_a_quoted_item_joins(self):
+        """Guard, passes on b24a2d58: an unquoted paragraph line right after a quoted item is a lazy continuation of that item."""
+        _, r = lint_report("item_quote_lazy.md")
+        self.assertEqual(label_findings(r), [("label-twice", 1)])
+
+    def test_blockquote_line_ends_a_paragraph(self):
+        """RED on b24a2d58: the parent removes the `>` before it splits blocks, so a 3-sentence paragraph and a 2-sentence quote read as one long-paragraph."""
+        _, r = lint_report("para_quote.md")
+        self.assertEqual(kinds(r), [])
+        self.assertEqual(r["sentences"], 5)
+
+    def test_jira_bq_line_ends_an_item(self):
+        """RED on b24a2d58: the parent takes a Jira `bq.` line into the item above, so its `Reported:` is a second label."""
+        _, r = lint_report("item_bq_jira.txt")
+        self.assertEqual(label_findings(r), [])
+        self.assertEqual(r["sentences"], 2)
+
+    def test_fence_ends_an_item(self):
+        """RED on b24a2d58: the parent takes a fenced block and the line after it into the item, so `Hypothesis:` is a second label."""
+        _, r = lint_report("item_fence.md")
+        self.assertEqual(label_findings(r), [])
+        self.assertEqual(r["sentences"], 2)
+
+    def test_fence_under_an_item_adds_no_word(self):
+        """RED on b24a2d58: the parent joins a fence under an item as the word CODE, so a 25-word item reads as a 26-word long-sentence."""
+        _, r = lint_report("item_fence_indented.md")
+        self.assertEqual(findings_of(r, "long-sentence"), [])
+        self.assertEqual((r["sentences"], r["max_words"]), (1, 25))
+
+    def test_jira_code_block_ends_an_item(self):
+        """RED on b24a2d58: the parent takes a Jira {code} block and the line after it into the item, so `Hypothesis:` is a second label."""
+        _, r = lint_report("item_code_jira.txt")
+        self.assertEqual(label_findings(r), [])
+        self.assertEqual(r["sentences"], 2)
+
+    def test_jira_noformat_block_ends_an_item(self):
+        """RED on b24a2d58: the parent takes a Jira {noformat} block and the line after it into the item, so `Inferred:` is a second label."""
+        _, r = lint_report("item_noformat_jira.txt")
+        self.assertEqual(label_findings(r), [])
+        self.assertEqual(r["sentences"], 2)
+
+    def test_table_without_leading_pipe_ends_an_item(self):
+        """RED on b24a2d58: the parent reads only `|`-led lines as table rows, so a bare GFM table joins the item as a 28-word sentence."""
+        _, r = lint_report("item_table_bare.md")
+        self.assertEqual(findings_of(r, "long-sentence"), [])
+        self.assertEqual((r["sentences"], r["max_words"]), (1, 19))
+
+
+class LongItems(unittest.TestCase):
+    def test_5_sentence_item_is_long(self):
+        """RED on b24a2d58: the parent applies the paragraph limit to paragraphs only, so a 5-sentence item makes no finding."""
+        _, r = lint_report("long_item_5.md")
+        self.assertEqual([(f["kind"], f["line"]) for f in r["findings"]], [("long-item", 1)])
+
+    def test_4_sentence_item_is_not_long(self):
+        """Guard, passes on b24a2d58: a 4-sentence wrapped item is within the limit and makes no finding."""
+        _, r = lint_report("long_item_4.md")
+        self.assertEqual(kinds(r), [])
+        self.assertEqual(r["sentences"], 4)
 
 
 if __name__ == "__main__":

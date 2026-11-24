@@ -1,0 +1,5 @@
+* Verified: the nightly export wrote every table.
+{code}
+export --tables all
+{code}
+Hypothesis: the export will also handle the new audit table.

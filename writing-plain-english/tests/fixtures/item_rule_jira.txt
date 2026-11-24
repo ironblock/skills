@@ -1,0 +1,3 @@
+* Verified: the queue drained before the backup started.
+----
+The backup job then copied the whole mail store to the spare array and wrote a short summary for the morning team.

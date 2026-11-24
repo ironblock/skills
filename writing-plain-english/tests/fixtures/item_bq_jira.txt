@@ -1,0 +1,2 @@
+* Observed: the sync job skipped the shared calendar.
+bq. Reported: two people lost the meetings they had booked for Friday.
