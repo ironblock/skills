@@ -5,7 +5,7 @@ from helpers import run, run_json
 
 TOKEN_CLASSES = ["numbers", "code-spans", "code-blocks", "paths", "quoted-strings",
                  "links", "hashes", "bracket-labels"]
-WORD_CLASSES = ["hedges", "conditions", "reasons", "negations"]
+WORD_CLASSES = ["hedges", "conditions", "reasons", "negations", "counters"]
 
 
 def pairs(entries, key):
@@ -33,13 +33,17 @@ class Inventory(unittest.TestCase):
         self.assertEqual([t[k] for k in ("code-blocks", "links", "bracket-labels")], [[], [], []])
 
     def test_words_with_lines(self):
-        """RED on v1: v1 has no inventory subcommand."""
+        """RED on v1: v1 has no inventory subcommand.
+
+        Also RED on e885c908, which has no counters class: the class list here now names it.
+        """
         w = self.data["words"]
         self.assertEqual(sorted(w), sorted(WORD_CLASSES))
         self.assertEqual(pairs(w["hedges"], "word"), [("only", 3)])
         self.assertEqual(pairs(w["conditions"], "word"), [("if", 4)])
         self.assertEqual(pairs(w["reasons"], "word"), [("because", 7)])
         self.assertEqual(pairs(w["negations"], "word"), [("not", 4)])
+        self.assertEqual(pairs(w["counters"], "word"), [])
 
     def test_text_is_a_checklist(self):
         """RED on v1: v1 has no inventory subcommand."""
@@ -80,6 +84,22 @@ class Inventory(unittest.TestCase):
         _, d = run_json("inventory", "path_end.md")
         self.assertEqual(pairs(d["tokens"]["paths"], "token"),
                          [("docs/setup.md", 1), ("/etc/hosts", 1), ("notes.txt", 1)])
+
+
+class InventoryCounters(unittest.TestCase):
+    def test_every_counter_entry_with_its_line(self):
+        """RED on e885c908: the parent has no counters class in its inventory."""
+        _, d = run_json("inventory", "counters_all.md")
+        self.assertEqual(pairs(d["words"]["counters"], "word"),
+                         [("but", 1), ("However", 2), ("Although", 3), ("though", 4), ("yet", 5),
+                          ("whereas", 6), ("nevertheless", 7), ("nonetheless", 8), ("Even so", 9),
+                          ("despite", 10), ("in spite of", 11)])
+
+    def test_even_so_is_a_counter_not_a_reason(self):
+        """RED on e885c908: the parent counts the `so` of `Even so` as a reason."""
+        _, d = run_json("inventory", "even_so.md")
+        self.assertEqual(pairs(d["words"]["reasons"], "word"), [])
+        self.assertEqual(pairs(d["words"]["counters"], "word"), [("Even so", 1)])
 
 
 if __name__ == "__main__":

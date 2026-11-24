@@ -14,6 +14,8 @@ HEDGES = {"may", "might", "could", "possibly", "probably", "likely", "only", "ju
 CONDITIONS = {"if", "unless", "only after", "otherwise", "when", "until", "except"}
 REASONS = {"because", "so", "since", "therefore", "which means"}
 NEGATIONS = {"not", "no", "never", "none", "nothing", "without", "n't"}
+COUNTERS = {"but", "however", "although", "though", "yet", "whereas", "nevertheless",
+            "nonetheless", "even so", "despite", "in spite of"}
 
 
 class Source(unittest.TestCase):
@@ -50,6 +52,24 @@ class Source(unittest.TestCase):
         self.assertEqual(set(mod.CONDITIONS), CONDITIONS)
         self.assertEqual(set(mod.REASONS), REASONS)
         self.assertEqual(set(mod.NEGATIONS), NEGATIONS)
+
+    def test_counter_list_is_a_constant(self):
+        """RED on e885c908: the parent has no COUNTERS constant."""
+        mod = load_module()
+        self.assertEqual(set(mod.COUNTERS), COUNTERS)
+        self.assertIs(mod.WORD_CLASSES["counters"], mod.COUNTERS)
+
+    def test_word_lists_are_called_a_baseline(self):
+        """RED on e885c908: the parent's comment above the word lists does not call them a baseline."""
+        lines = source().splitlines()
+        i = next(n for n, line in enumerate(lines) if line.startswith("HEDGES ="))
+        comment = []
+        while i > 0 and lines[i - 1].startswith("#"):
+            i -= 1
+            comment.insert(0, lines[i])
+        text = " ".join(line.lstrip("#").strip() for line in comment).lower()
+        # Report only which phrases are present: the source must not reach the run's output.
+        self.assertEqual(("baseline" in text, "not a detector" in text), (True, True))
 
     def test_default_labels_constant(self):
         """RED on v1: v1 has no label set."""

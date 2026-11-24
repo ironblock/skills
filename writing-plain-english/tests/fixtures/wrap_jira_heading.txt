@@ -1,0 +1,2 @@
+* Verified: the task list below covers every job that ran on the spare host last week
+h3. Tasks that still need an owner before the end of this month

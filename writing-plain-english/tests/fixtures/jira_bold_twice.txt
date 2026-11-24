@@ -1,0 +1,2 @@
+* *Observed:* the build queue grew after lunch. *Inferred:* one runner went offline.
+* *Verified:* the runner came back at three.

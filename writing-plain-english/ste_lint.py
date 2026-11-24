@@ -18,17 +18,21 @@ Lint checks:
 
 All checks but noun-cluster are deterministic. noun-cluster is a heuristic,
 so a person judges each of its findings. The evidence labels are
-DEFAULT_LABELS unless --labels names others.
+DEFAULT_LABELS unless --labels names others. A label is read plain
+(Verified:) or bold (**Verified:**, **Verified**:, Jira *Verified:*).
 
 Before the checks, the lint skips a leading YAML frontmatter block, unwraps
 blockquotes, and removes code (fenced, {code}, {noformat}, `...`, {{...}}),
 URLs and link targets. Headings, table rows and whole-line bold labels are
-not linted. Each finding names the line it came from, as L<n>. Deterministic
+not linted. A list item takes in the lines under it, indented or not, up to
+a blank line, another list marker, or a heading, table row or bold label
+line. Each finding names the line it came from, as L<n>. Deterministic
 findings print first and heuristic ones after, each group in line order.
 
 --compare OLD NEW lists, for each token class, the tokens that disappeared
 and the tokens that appeared (a multiset difference). It also counts the
-words of each word class. Equal lists and counts do not prove equal meaning.
+words of each word class (hedges, conditions, reasons, negations and
+counter-clauses). Equal lists and counts do not prove equal meaning.
 
 inventory FILE lists each token and each word-class word with its line, as a
 checklist for a rewrite. --compare and inventory read the whole file,
@@ -46,15 +50,21 @@ import re
 import statistics
 import sys
 
-# Word classes for --compare and inventory. A multi-word entry matches across
-# any whitespace; "n't" matches as a word ending ("don't", "isn’t").
+# Word classes for --compare and inventory. These lists are a baseline, not a
+# detector: each is a fixed set of surface words, counted per class over the
+# whole text. A word can be counted where it plays another role ("not yet"
+# counts a counter-clause), and an equal count does not prove an equal claim.
+# A multi-word entry matches across any whitespace; "n't" matches as a word
+# ending ("don't", "isn’t").
 HEDGES = ("may", "might", "could", "possibly", "probably", "likely", "only", "just",
           "by itself", "alone", "appears", "seems", "suggests")
 CONDITIONS = ("if", "unless", "only after", "otherwise", "when", "until", "except")
 REASONS = ("because", "so", "since", "therefore", "which means")
 NEGATIONS = ("not", "no", "never", "none", "nothing", "without", "n't")
+COUNTERS = ("but", "however", "although", "though", "yet", "whereas", "nevertheless",
+            "nonetheless", "even so", "despite", "in spite of")
 WORD_CLASSES = {"hedges": HEDGES, "conditions": CONDITIONS,
-                "reasons": REASONS, "negations": NEGATIONS}
+                "reasons": REASONS, "negations": NEGATIONS, "counters": COUNTERS}
 
 # Evidence labels for the label checks; --labels replaces the set.
 DEFAULT_LABELS = ("Verified", "Reported", "Observed", "Inferred", "Hypothesis", "Unknown")
@@ -120,7 +130,10 @@ SENT_BREAK = r"[.!?][\"”’')\]]*\s+(?=[A-Z0-9\[\"“‘(*])"
 # a lowercase "no" entry would merge sentences ending in "no.").
 ABBREV = r"\b(e\.g|i\.e|etc|vs|approx|Fig|No|Sec)\."
 ITEM = r"^([*#-]+|\d+[.)])\s+(.*)"
-WORD_COLON = r"([A-Z][A-Za-z]+):(?=\s|$)"
+# A label as written: plain (Verified:) or bold (**Verified:**, **Verified**:,
+# or Jira *Verified:*). {w} is the pattern of the label word.
+LABEL_FORMS = r"(?:{w}:|\*\*{w}:\*\*|\*\*{w}\*\*:|\*{w}:\*)(?=\s|$)"
+WORD_COLON = LABEL_FORMS.format(w=r"([A-Z][A-Za-z]+)")
 
 # strip_markup substitutions, in order. (pattern, replacement, flags, group):
 # replacement None with a group emits the group's text instead.
@@ -185,7 +198,8 @@ def strip_markup(text: str) -> str:
 def paragraphs(text: str, offs=None):
     """Yield (kind, text, offs, level) blocks; offs parallels text.
 
-    kind is "para", "item" (each list item is its own block) or "sep" (a
+    kind is "para", "item" (each list item is its own block, with the lines
+    under it up to a blank line, a list marker or a skipped line) or "sep" (a
     skipped heading, bold label or table line, which ends a list). level is
     an item's (indent, marker), None for the other kinds; the marker is the
     bullet as written ("*", "**", "#", "-") or "1." / "1)" for a number.
@@ -210,7 +224,16 @@ def _skipped(s, wiki):
 
 
 def _block_parts(block, boffs, wiki=False):
-    buf, buf_offs = [], []
+    """Paragraphs, items and seps of one blank-line-free block. A line under a
+    list item continues that item, indented or not (a Markdown lazy
+    continuation), until a list marker or a skipped line."""
+    buf, buf_offs, level = [], [], None  # level is set while buf holds an item
+
+    def flush():
+        if buf:
+            kind, t, o, _ = _join(buf, buf_offs, "item" if level else "para")
+            yield kind, t, o, level
+
     for m in re.finditer(r"[^\n]+", block):
         line = m.group(0)
         if not line.strip():
@@ -219,25 +242,21 @@ def _block_parts(block, boffs, wiki=False):
         indent = len(line) - len(line.lstrip())
         soff = m.start() + indent
         if _skipped(s, wiki):
-            if buf:
-                yield _join(buf, buf_offs, "para")
-                buf, buf_offs = [], []
+            yield from flush()
+            buf, buf_offs, level = [], [], None
             yield "sep", "", [], None
             continue
         mi = re.match(ITEM, s)
         if mi:
-            if buf:
-                yield _join(buf, buf_offs, "para")
-                buf, buf_offs = [], []
+            yield from flush()
             t = mi.group(2)
             o = soff + mi.start(2)
             marker = re.sub(r"\d+", "1", mi.group(1))
-            yield "item", t, boffs[o:o + len(t)], (indent, marker)
+            buf, buf_offs, level = [t], [boffs[o:o + len(t)]], (indent, marker)
         else:
             buf.append(s)
             buf_offs.append(boffs[soff:soff + len(s)])
-    if buf:
-        yield _join(buf, buf_offs, "para")
+    yield from flush()
 
 
 def _join(buf, buf_offs, kind):
@@ -314,7 +333,7 @@ def noun_clusters(s: str):
 
 def _label_re(labels):
     alts = "|".join(re.escape(lb) for lb in sorted(labels, key=len, reverse=True))
-    return re.compile(rf"(?:{alts}):(?=\s|$)")
+    return re.compile(LABEL_FORMS.format(w=f"(?:{alts})"))
 
 
 def label_findings(items, labels, line_of):
@@ -331,13 +350,14 @@ def label_findings(items, labels, line_of):
     for text, offs, level, run in items:
         line = line_of(offs[0]) if offs else 0
         ptext, starts = sentence_starts(text)
-        found = [m.group(0)[:-1] for p in starts if (m := known.match(ptext, p))]
+        found = [p for p in starts if known.match(ptext, p)]
         if len(found) >= 2:
             out.append(("label-twice", text[:90], line))
         for m in re.finditer(BRACKET_LABEL, text):
             out.append(("label-marker", text[:90], line_of(offs[m.start()])))
         w = re.match(WORD_COLON, text)
-        if w and w.group(1) not in labels and not known.match(text):
+        word = w and next(g for g in w.groups() if g)  # one group per label form
+        if w and word not in labels and not known.match(text):
             others = list(siblings[(run, level)])
             others.remove(text)
             if any(known.match(o) for o in others):
@@ -487,10 +507,14 @@ def extract(raw: str):
     tokens = {c: [(t, line_of(pos)) for pos, t in sorted(found[c], key=lambda x: x[0])]
               for c in TOKEN_CLASSES}
     prose_text = "".join(prose)
+    # A counter-clause claims its words: the "so" of "even so" is not a reason.
+    claimed = [m.span() for m in _word_re(COUNTERS).finditer(prose_text)]
     word_hits = {}
     for c, entries in WORD_CLASSES.items():
         hits = []
         for m in _word_re(entries).finditer(prose_text):
+            if c != "counters" and any(a <= m.start() and m.end() <= b for a, b in claimed):
+                continue
             written = _collapse(m.group(0))
             hits.append((written, written.lower().replace("’", "'"), line_of(m.start())))
         word_hits[c] = hits

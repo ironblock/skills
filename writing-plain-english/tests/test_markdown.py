@@ -1,5 +1,5 @@
 """How the lint reads Markdown: sentence ends, blockquotes, frontmatter,
-bold label lines and `1)` lists."""
+bold label lines, `1)` lists and list items wrapped across lines."""
 import unittest
 
 from helpers import findings_of, kinds, lint_report
@@ -79,6 +79,49 @@ class LabelsAndLists(unittest.TestCase):
         """RED on v1: frontmatter, bold labels, a quoted list and a closing quote all make v1 findings."""
         _, r = lint_report("clean.md")
         self.assertEqual(r["findings"], [])
+
+
+class WrappedItems(unittest.TestCase):
+    def test_indented_continuation_is_one_sentence(self):
+        """RED on e885c908: the parent reads an indented continuation line as a new paragraph, so a 26-word sentence reads as two of 13."""
+        _, r = lint_report("wrap_indent_long.md")
+        self.assertEqual(findings_of(r, "long-sentence"), [("long-sentence", 1)])
+        self.assertEqual(r["sentences"], 1)
+
+    def test_lazy_continuation_is_one_sentence(self):
+        """RED on e885c908: the parent reads a lazy continuation line as a new paragraph, so a 28-word sentence reads as two."""
+        _, r = lint_report("wrap_lazy_long.md")
+        self.assertEqual(findings_of(r, "long-sentence"), [("long-sentence", 1)])
+        self.assertEqual(r["sentences"], 1)
+
+    def test_blank_line_ends_the_item(self):
+        """Guard, passes on e885c908: a line after a blank line is a paragraph, not part of the item above."""
+        _, r = lint_report("wrap_blank_ends.md")
+        self.assertEqual(kinds(r), [])
+        self.assertEqual(r["sentences"], 2)
+
+    def test_next_marker_starts_an_item(self):
+        """Guard, passes on e885c908: a list marker after a wrapped item starts a new item, so no 32-word sentence."""
+        _, r = lint_report("wrap_next_marker.md")
+        self.assertEqual(findings_of(r, "long-sentence"), [])
+
+    def test_heading_is_not_swallowed(self):
+        """Guard, passes on e885c908: a Markdown heading right after an item is not part of the item."""
+        _, r = lint_report("wrap_heading.md")
+        self.assertEqual(findings_of(r, "long-sentence"), [])
+        self.assertEqual(r["sentences"], 1)
+
+    def test_table_row_is_not_swallowed(self):
+        """Guard, passes on e885c908: a table row right after an item is not part of the item."""
+        _, r = lint_report("wrap_table.md")
+        self.assertEqual(findings_of(r, "long-sentence"), [])
+        self.assertEqual(r["sentences"], 1)
+
+    def test_jira_heading_is_not_swallowed(self):
+        """Guard, passes on e885c908: a Jira `h3.` heading right after an item is not part of the item."""
+        _, r = lint_report("wrap_jira_heading.txt")
+        self.assertEqual(findings_of(r, "long-sentence"), [])
+        self.assertEqual(r["sentences"], 1)
 
 
 if __name__ == "__main__":

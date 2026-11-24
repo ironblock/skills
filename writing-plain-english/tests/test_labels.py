@@ -1,4 +1,6 @@
-"""Evidence-label checks on list items: label-twice, label-marker, label-unknown."""
+"""Evidence-label checks on list items: label-twice, label-marker, label-unknown.
+Labels are read plain (Verified:) or bold (**Verified:**, **Verified**:, Jira
+*Verified:*), and a list item includes its continuation lines."""
 import unittest
 
 from helpers import kinds, lint_report
@@ -68,6 +70,55 @@ class LabelKnownGood(unittest.TestCase):
         """Guard, passes on v1: Jira `**` items under a `*` item are another list."""
         _, r = lint_report("labels_jira_nested.txt")
         self.assertEqual(kinds(r), [])
+
+
+class WrappedLabels(unittest.TestCase):
+    def test_second_label_on_indented_continuation(self):
+        """RED on e885c908: the parent reads the indented continuation line as a paragraph, so its `Hypothesis:` is not checked."""
+        _, r = lint_report("wrap_indent_label.md")
+        self.assertEqual(label_findings(r), [("label-twice", 1)])
+
+    def test_second_label_on_lazy_continuation(self):
+        """RED on e885c908: the parent reads the lazy continuation line as a paragraph, so its `Inferred:` is not checked."""
+        _, r = lint_report("wrap_lazy_label.md")
+        self.assertEqual(label_findings(r), [("label-twice", 1)])
+
+    def test_wrapped_item_keeps_its_siblings(self):
+        """RED on e885c908: the parent's continuation paragraph ends the list, so `Maybe:` has no `Verified:` sibling."""
+        _, r = lint_report("wrap_sibling_unknown.md")
+        self.assertEqual(label_findings(r), [("label-unknown", 3)])
+
+
+class BoldLabels(unittest.TestCase):
+    def test_bold_labels_colon_inside(self):
+        """RED on e885c908: the parent does not read `**Verified:**` as a label, so two bold labels per item pass."""
+        _, r = lint_report("bold_twice_inside.md")
+        self.assertEqual(label_findings(r), [("label-twice", 1), ("label-twice", 2), ("label-twice", 3)])
+
+    def test_bold_labels_colon_outside(self):
+        """RED on e885c908: the parent does not read `**Verified**:` as a label."""
+        _, r = lint_report("bold_twice_outside.md")
+        self.assertEqual(label_findings(r), [("label-twice", 1)])
+
+    def test_jira_bold_labels(self):
+        """RED on e885c908: the parent does not read Jira bold `*Observed:*` as a label."""
+        _, r = lint_report("jira_bold_twice.txt")
+        self.assertEqual(label_findings(r), [("label-twice", 1)])
+
+    def test_bold_unknown_label_beside_bold_known(self):
+        """RED on e885c908: the parent reads neither `**Probably:**` nor its bold siblings as labels."""
+        _, r = lint_report("bold_unknown.md")
+        self.assertEqual(label_findings(r), [("label-unknown", 2)])
+
+    def test_bold_labels_with_labels_option(self):
+        """RED on e885c908: the parent does not read `**Seen:**` as a label, even when --labels names it."""
+        _, r = lint_report("bold_custom.md", "--labels", "Seen,Guessed")
+        self.assertEqual(label_findings(r), [("label-twice", 1)])
+
+    def test_one_bold_label_per_item(self):
+        """Guard, passes on e885c908: one bold known label per item, in any of the three forms, is no label finding."""
+        _, r = lint_report("bold_labels_good.md")
+        self.assertEqual(label_findings(r), [])
 
 
 if __name__ == "__main__":

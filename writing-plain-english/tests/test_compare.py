@@ -1,5 +1,5 @@
 """--compare OLD NEW: which tokens disappeared and appeared, per class, and
-the counts of hedges, conditions, reasons and negations."""
+the counts of hedges, conditions, reasons, negations and counter-clauses."""
 import unittest
 
 from helpers import run, run_json
@@ -133,6 +133,28 @@ class CompareOther(unittest.TestCase):
         lines = out.splitlines()
         self.assertIn("-- hedges", lines)
         self.assertIn("   may 1 -> 0", lines)
+
+
+class CompareCounters(unittest.TestCase):
+    def test_dropped_counters_are_counted(self):
+        """RED on e885c908: the parent has no counters class, so dropping `but` and `however` is invisible."""
+        _, d = compare("counter_old.md", "counter_new.md")
+        self.assertEqual((d["old"]["counters"], d["new"]["counters"], d["delta"]["counters"]), (2, 0, -2))
+        self.assertEqual(d["words"]["counters"],
+                         {"but": {"old": 1, "new": 0}, "however": {"old": 1, "new": 0}})
+
+    def test_dropped_but_of_but_only_is_a_counter_change(self):
+        """RED on e885c908: the parent has no counters class, so the dropped `but` of `but only` is invisible."""
+        _, d = compare("cmp_old.md", "cmp_new.md")
+        self.assertEqual(d["words"]["counters"], {"but": {"old": 1, "new": 0}})
+
+    def test_text_output_lists_counter_changes(self):
+        """RED on e885c908: the parent's text output has no counters class."""
+        _, out, _ = run("--compare", "counter_old.md", "counter_new.md")
+        lines = out.splitlines()
+        self.assertIn("-- counters", lines)
+        self.assertIn("   but 1 -> 0", lines)
+        self.assertIn("   however 1 -> 0", lines)
 
 
 if __name__ == "__main__":
