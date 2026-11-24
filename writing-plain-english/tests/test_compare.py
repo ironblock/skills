@@ -148,11 +148,14 @@ class CompareCounters(unittest.TestCase):
         _, d = compare("cmp_old.md", "cmp_new.md")
         self.assertEqual(d["words"]["counters"], {"but": {"old": 1, "new": 0}})
 
-    def test_rewrite_of_counter_words_in_other_roles_is_no_counter_change(self):
-        """RED on b24a2d58: the parent counts `All but` and `not yet` as counter-clauses, so this rewrite reads as counters 2 -> 0."""
+    def test_rewrite_of_all_but_one_is_a_counter_change(self):
+        """RED on 56aebf56: the parent leaves out the `but` of `All but one`, so its rewrite to `except one` is no counter change.
+
+        The `not yet` of the same rewrite stays out of the count.
+        """
         _, d = compare("role_rewrite_old.md", "role_rewrite_new.md")
-        self.assertEqual((d["old"]["counters"], d["new"]["counters"]), (0, 0))
-        self.assertEqual(d["words"]["counters"], {})
+        self.assertEqual((d["old"]["counters"], d["new"]["counters"]), (1, 0))
+        self.assertEqual(d["words"]["counters"], {"but": {"old": 1, "new": 0}})
 
     def test_text_output_lists_counter_changes(self):
         """RED on e885c908: the parent's text output has no counters class."""

@@ -114,18 +114,6 @@ class CounterRoles(unittest.TestCase):
     counted. Each fixture's line 2 holds the same word as a counter-clause,
     which is still counted."""
 
-    def test_all_but(self):
-        """RED on b24a2d58: the parent counts the `but` of `All but one` as a counter-clause."""
-        self.assertEqual(counters("role_all_but.md"), [("but", 2)])
-
-    def test_anything_but(self):
-        """Guard, passes on f0892596: the `but` of `anything but a few` is not counted, and the control on line 2 is."""
-        self.assertEqual(counters("role_anything_but_few.md"), [("but", 2)])
-
-    def test_nothing_but(self):
-        """Guard, passes on f0892596: the `but` of `nothing but` before a number is not counted, and the control on line 2 is."""
-        self.assertEqual(counters("role_nothing_but_number.md"), [("but", 2)])
-
     def test_not_only_but_also(self):
         """RED on b24a2d58: the parent counts the `but` of `not only ... but also` as a counter-clause."""
         self.assertEqual(counters("role_not_only.md"), [("but", 2)])
@@ -133,10 +121,6 @@ class CounterRoles(unittest.TestCase):
     def test_not_yet(self):
         """RED on b24a2d58: the parent counts the `yet` of `not yet` as a counter-clause."""
         self.assertEqual(counters("role_not_yet.md"), [("yet", 2)])
-
-    def test_yet_another(self):
-        """RED on b24a2d58: the parent counts the `yet` of `yet another` as a counter-clause."""
-        self.assertEqual(counters("role_yet_another.md"), [("yet", 2)])
 
     def test_as_yet(self):
         """RED on b24a2d58: the parent counts the `yet` of `as yet` as a counter-clause."""
@@ -148,14 +132,6 @@ class CounterRoles(unittest.TestCase):
         The control on line 2 is `Even though`, which stays a counter-clause.
         """
         self.assertEqual(counters("role_as_though.md"), [("though", 2)])
-
-    def test_however_before_a_degree_word(self):
-        """RED on b24a2d58: the parent counts the `However` of `However long the copy takes` as a counter-clause."""
-        self.assertEqual(counters("role_however_degree.md"), [("However", 2)])
-
-    def test_however_before_a_pronoun_and_verb(self):
-        """Guard, passes on f0892596: the `however` of `one log file however you call it` is not counted, and the control on line 2 is."""
-        self.assertEqual(counters("role_however_mid_clause.md"), [("however", 2)])
 
 
 class CountedRoles(unittest.TestCase):
@@ -176,11 +152,11 @@ class CountedRoles(unittest.TestCase):
         self.assertEqual(counters("role_nothing_but_clause.md"), [("but", 1)])
 
     def test_anything_but_before_an_adjective(self):
-        """RED on f0892596: the parent leaves out the `but` of `anything but smooth`, a role guess; only a number, a number word or `a few` after it makes a fixed phrase."""
+        """RED on f0892596: the parent leaves out the `but` of `anything but smooth`, a role guess."""
         self.assertEqual(counters("role_anything_but.md"), [("but", 1), ("but", 2)])
 
     def test_nothing_but_before_a_noun(self):
-        """RED on f0892596: the parent leaves out the `but` of `nothing but timeouts`, a role guess; only a number, a number word or `a few` after it makes a fixed phrase."""
+        """RED on f0892596: the parent leaves out the `but` of `nothing but timeouts`, a role guess."""
         self.assertEqual(counters("role_nothing_but.md"), [("but", 1), ("but", 2)])
 
     def test_however_at_a_sentence_start(self):
@@ -194,6 +170,54 @@ class CountedRoles(unittest.TestCase):
     def test_however_manner_at_a_sentence_start(self):
         """RED on f0892596: the parent leaves out the sentence-initial `However you start the service`, which has the shape of a counter-clause."""
         self.assertEqual(counters("role_however_pronoun.md"), [("However", 1), ("however", 2)])
+
+    def test_however_many_in_a_counter_clause(self):
+        """RED on 56aebf56: the parent leaves out a `However` before a degree word, so the counter-clause `However many users still see the error` is not counted."""
+        self.assertEqual(counters("role_however_degree_clause.md"), [("However", 1)])
+
+    def test_however_we_in_mid_clause(self):
+        """RED on 56aebf56: the parent leaves out a mid-clause `however` before a pronoun, so the counter-clause `however we see failures` is not counted."""
+        self.assertEqual(counters("role_however_pronoun_clause.md"), [("however", 1)])
+
+    def test_all_but_one_in_a_counter_clause(self):
+        """RED on 56aebf56: the parent leaves out the `but` of `all but` before a number word, so the counter-clause `but one still hangs` is not counted."""
+        self.assertEqual(counters("role_all_but_number_clause.md"), [("but", 1)])
+
+    def test_yet_another_in_a_counter_clause(self):
+        """RED on 56aebf56: the parent leaves out the `yet` of `yet another`, so the counter-clause `yet another leak appeared` is not counted."""
+        self.assertEqual(counters("role_yet_another_clause.md"), [("yet", 1)])
+
+    def test_however_opens_a_paragraph_after_a_heading(self):
+        """RED on 56aebf56: the parent reads the heading's last word as a word before a mid-clause `however`, so the paragraph-opening `However we found` is not counted."""
+        self.assertEqual(counters("role_however_after_heading.md"), [("However", 2)])
+
+    def test_however_opens_a_paragraph_after_a_list_item(self):
+        """RED on 56aebf56: the parent reads the last word of an item with no final period as a word before a mid-clause `however`, so the paragraph-opening `However we saw` is not counted."""
+        self.assertEqual(counters("role_however_after_item.md"), [("However", 3)])
+
+    def test_all_but_before_a_number_word(self):
+        """RED on 56aebf56: the parent leaves out the `but` of `All but one`, a role guess; `all but one` can also start a counter-clause."""
+        self.assertEqual(counters("role_all_but.md"), [("but", 1), ("but", 2)])
+
+    def test_anything_but_before_a_few(self):
+        """RED on 56aebf56: the parent leaves out the `but` of `anything but a few`, a role guess; `anything but a few` can also start a counter-clause."""
+        self.assertEqual(counters("role_anything_but_few.md"), [("but", 1), ("but", 2)])
+
+    def test_nothing_but_before_a_number(self):
+        """RED on 56aebf56: the parent leaves out the `but` of `nothing but 3`, a role guess; `nothing but` before a number can also start a counter-clause."""
+        self.assertEqual(counters("role_nothing_but_number.md"), [("but", 1), ("but", 2)])
+
+    def test_yet_another_as_a_phrase(self):
+        """RED on 56aebf56: the parent leaves out the `yet` of `yet another disk error`, a role guess; `yet another` can also start a counter-clause."""
+        self.assertEqual(counters("role_yet_another.md"), [("yet", 1), ("yet", 2)])
+
+    def test_however_before_a_degree_word(self):
+        """RED on 56aebf56: the parent leaves out the `However` of `However long the copy takes`, a role guess; `However` before a degree word can also start a counter-clause."""
+        self.assertEqual(counters("role_however_degree.md"), [("However", 1), ("However", 2)])
+
+    def test_however_before_a_pronoun_in_mid_clause(self):
+        """RED on 56aebf56: the parent leaves out the `however` of `one log file however you call it`, a role guess; a mid-clause `however` before a pronoun can also start a counter-clause."""
+        self.assertEqual(counters("role_however_mid_clause.md"), [("however", 1), ("however", 2)])
 
 
 class MultiWordClaims(unittest.TestCase):

@@ -1,0 +1,6 @@
+h3. Notes
+
+* Verified: the mirror job ended at six.
+** Observed: the old host ran it.
+** Guessed: the old host was idle.
+* Seemingly: the second mirror job ended late.

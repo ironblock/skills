@@ -20,7 +20,4 @@ Block structure:
 
 Word roles (the inventory and `--compare` count a word rather than guess its role):
 
-- `all but`, `anything but` and `nothing but` before a number, a number word or `a few` are not counted, even in a counter-clause that lacks its comma: `We fixed them all but two came back.`
-- `however` before a degree word is not counted, even in a counter-clause that lacks its comma: `However much of the data was lost.`
-- `however` before a pronoun in mid-clause is not counted, even in a counter-clause that lacks its comma: `The fix works however we need a test.`
 - A counter word in another role is counted where its phrase can also start a counter-clause, so it adds a checklist item: `The upgrade was anything but smooth.` counts one counter.

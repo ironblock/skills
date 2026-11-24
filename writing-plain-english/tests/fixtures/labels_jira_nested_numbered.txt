@@ -1,0 +1,6 @@
+h3. Steps
+
+# Observed: the restore of the first disk took an hour.
+## Verified: it read every block twice.
+# Observed: the restore of the second disk took ten minutes.
+## Maybe: it skipped the empty blocks.

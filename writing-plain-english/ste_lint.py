@@ -34,7 +34,8 @@ hN.), a table row (led by "|", or under a GFM header row such as "a | b"
 over "---|---"), a thematic break (---, ***, ___, Jira ----), a code block
 (the line after it starts afresh), a Jira panel tag, a line that opens a
 blockquote ("> " one level deeper, or Jira bq.), or a bold label line. A
-line inside the same blockquote continues it. In Markdown, a line of "-" or
+line inside the same blockquote continues it. A blank line with fewer ">"
+ends the blockquote and the lists in it. In Markdown, a line of "-" or
 "=" right under a paragraph line makes that paragraph a setext heading;
 Jira has no setext headings, so "----" there is a rule.
 
@@ -44,7 +45,8 @@ blank line or not. Each one ends the item's paragraph but not the item or
 its list: the items before and after it are still siblings, and the
 sentences after it count toward the item's long-item and label checks. A
 line at a smaller indent that is not a lazy continuation ends the list.
-Jira lists have no content column.
+Jira lists have no content column; a Jira item with a longer marker ("**",
+"##") is nested in the nearest item above it with a shorter one.
 
 Each finding names the line it came from, as L<n>. Deterministic findings
 print first and heuristic ones after, each group in line order.
@@ -107,33 +109,21 @@ COUNTERS = ("but", "however", "although", "though", "yet", "whereas", "neverthel
 WORD_CLASSES = {"hedges": HEDGES, "conditions": CONDITIONS,
                 "reasons": REASONS, "negations": NEGATIONS, "counters": COUNTERS}
 
-# Counter words in fixed phrases that are not counter-clauses (the error-
-# direction rule in the module docstring): "all but", "anything but" or
-# "nothing but" before a number, a number word or "a few" (except), "not only
-# ... but also" (and), "not yet" (still not), "yet another", "as yet", "as
-# though" (as if), "however" before a degree word ("however long it takes")
-# and, in mid-clause, "however" before a pronoun and a word ("one file however
-# you call it"). Each pattern matches one such use and names the counter word
-# as group w; that word is not counted. Where the same words can start a
-# counter-clause they are counted: "all but the error remained", "anything
-# but smooth", a "however" at the start of a sentence or after a comma
-# ("However we found", ", however we saw"), and "even though".
-NUMBER_WORDS = ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-                "ten", "eleven", "twelve", "twenty", "thirty", "forty", "fifty", "sixty",
-                "seventy", "eighty", "ninety")
-HOWEVER_DEGREE = ("much", "many", "long", "often", "far", "hard", "few", "little", "large",
-                  "small", "big", "good", "well", "fast", "slow", "slowly", "quickly",
-                  "carefully", "early", "late")
+# Counter words in fixed phrases that are never a counter-clause (the error-
+# direction rule in the module docstring): "not only ... but also" (and),
+# "not yet" (still not), "as yet" (so far) and "as though" (as if). Each
+# pattern matches one such use and names the counter word as group w; that
+# word is not counted. Every other counter word is counted, whatever its
+# role, because its phrase can also start a counter-clause: "all but one"
+# ("We retried them all but one still hangs"), "yet another" ("We fixed the
+# leak, yet another leak appeared"), "however many" ("However many users
+# still see the error") and "however we" ("It passes locally however we see
+# failures"). "Even though" is counted.
 NOT_COUNTERS = (
-    r"\b(?:all|anything|nothing)\s+(?P<w>but)\s+(?:\d|(?:" + "|".join(NUMBER_WORDS)
-    + r"|a\s+few)\b)",
     r"\bnot\s+only\b[^.!?]*?\b(?P<w>but)\s+also\b",
     r"\bnot\s+(?P<w>yet)\b",
-    r"\b(?P<w>yet)\s+another\b",
     r"\bas\s+(?P<w>yet)\b",
     r"\bas\s+(?P<w>though)\b",
-    r"\b(?P<w>however)\s+(?:" + "|".join(HOWEVER_DEGREE) + r")\b",
-    r"(?<=\w)\s+(?P<w>however)\s+(?:you|we|they)\s+(?=[a-z])",  # a word, not punctuation, before it
 )
 
 # Evidence labels for the label checks; --labels replaces the set.
@@ -291,9 +281,9 @@ def paragraphs(text: str, offs=None, raw=None):
 
       para  a paragraph outside every list item. It ends the lists above it.
       item  the first paragraph of a list item. key is its sibling key: items
-            with one key are siblings in one list (the same indent, marker
-            and enclosing item, and no paragraph, code block or sep between
-            them at that level).
+            with one key are siblings in one list (the same indent, marker,
+            blockquote depth and enclosing item, and no paragraph, code
+            block, sep or end of a blockquote between them at that level).
       part  a later paragraph of an item, indented to its content column
             after a code block or a blank line. key is the item's number (0
             for the first item yielded).
@@ -309,7 +299,10 @@ def paragraphs(text: str, offs=None, raw=None):
     inside one blockquote or lazily after it. A line that starts a paragraph
     or holds a code block belongs to the innermost open item whose content
     column it reaches at the same blockquote depth. With no such item, it
-    ends every list. A blank line ends a paragraph, not a list.
+    ends every list. A blank line ends a paragraph, not a list, but a blank
+    line with fewer ">" than the open lists ends their blockquote and them.
+    A Jira item belongs to the nearest open item above it with a shorter
+    marker ("*" above "**", "#" above "##").
     """
     if offs is None:
         offs = list(range(len(text)))
@@ -318,17 +311,18 @@ def paragraphs(text: str, offs=None, raw=None):
     # Dialect sniff: a document with Jira markers treats '# ' lines as
     # ordered-list steps; pure Markdown treats them as headings.
     wiki = bool(re.search(r"(?m)^h[1-6]\.\s", text) or "{{" in text)
-    lines, pos = [], 0  # (stripped line, indent, offset in text), None for a blank line
+    lines, starts, pos = [], [], 0  # (stripped line, indent, offset in text), None for a blank line
     for line in text.split("\n"):
         s = line.strip()
         indent = len(line) - len(line.lstrip())
         lines.append((s, indent, pos + indent) if s else None)
+        starts.append(pos)
         pos += len(line) + 1
     code_lead = len(CODE_WORD) - len(CODE_WORD.lstrip())  # a code line's indent, less this, is its fence's
     buf, buf_offs = [], []  # the open paragraph's lines
     owner, key, first, depth = None, None, False, 0  # its item (None: no item), key, first?, quote depth
-    open_items = []  # innermost last: {"col": content column, "depth", "no": item number, "breaks"}
-    count = run = 0  # items started; paragraphs and seps outside every item
+    open_items = []  # innermost last: {"col": content column, "depth", "level", "no": item number, "breaks"}
+    count = run = 0  # items started; ends of every list (paragraph or sep outside items, quote end)
     table = False
 
     def flush():
@@ -341,14 +335,15 @@ def paragraphs(text: str, offs=None, raw=None):
             else:
                 yield "part", t, o, owner["no"]
 
-    def holder(indent, d):
+    def holder(indent, d, level=0):
         """The index in open_items of the innermost item that holds a line
-        at indent and blockquote depth d, or -1. Jira lists have no content
-        column, so in Jira no line is held."""
-        if wiki:
-            return -1
+        at indent and blockquote depth d, or -1. In Markdown that is an item
+        whose content column the line reaches. Jira lists have no content
+        column: an item whose marker has length level is held by an item
+        with a shorter marker, and no other line (level 0) is held."""
         for k in range(len(open_items) - 1, -1, -1):
-            if open_items[k]["depth"] == d and indent >= open_items[k]["col"]:
+            o = open_items[k]
+            if o["depth"] == d and (o["level"] < level if wiki else indent >= o["col"]):
                 return k
         return -1
 
@@ -356,6 +351,11 @@ def paragraphs(text: str, offs=None, raw=None):
         if line is None:
             yield from flush()
             buf, buf_offs, table = [], [], False
+            at = starts[i]
+            blank_depth = _quote_depth(raw, offs[at]) if at < len(offs) else 0
+            if open_items and blank_depth < open_items[-1]["depth"]:
+                open_items.clear()  # fewer ">": the blockquote and its lists end
+                run += 1
             continue
         s, indent, soff = line
         src = offs[soff]
@@ -384,14 +384,16 @@ def paragraphs(text: str, offs=None, raw=None):
         mi = re.match(ITEM, s)
         if mi:
             yield from flush()
-            k = holder(indent, d)
+            marker = mi.group(1)
+            level = len(marker) if re.fullmatch(r"[*#-]+", marker) else 1  # Jira nesting
+            k = holder(indent, d, level)
             parent = open_items[k] if k >= 0 else None
             del open_items[k + 1:]
             gap = mi.start(2) - mi.end(1)  # 5 or more spaces: the text is indented code
             owner = {"col": indent + mi.end(1) + (gap if gap <= 4 else 1), "depth": d,
-                     "no": count, "breaks": 0}
+                     "level": level, "no": count, "breaks": 0}
             key = (run, parent and parent["no"], parent and parent["breaks"], indent,
-                   re.sub(r"\d+", "1", mi.group(1)))
+                   re.sub(r"\d+", "1", marker), d)
             open_items.append(owner)
             count += 1
             first, depth = True, d

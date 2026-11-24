@@ -66,6 +66,48 @@ class LabelKnownGood(unittest.TestCase):
         self.assertEqual(kinds(r), [])
 
 
+class SeparateLists(unittest.TestCase):
+    """Items in two lists are not siblings. A list inside a blockquote and a
+    list outside it are two lists, and so are two blockquotes split by an
+    unquoted blank line. In Jira, nested lists under two parents are two
+    lists."""
+
+    def test_quoted_list_then_unquoted_item(self):
+        """RED on 56aebf56: the parent's sibling key leaves out blockquote depth, so the unquoted `Probably:` item is a sibling of the quoted `Verified:` item."""
+        _, r = lint_report("labels_bq_then_item.md")
+        self.assertEqual(label_findings(r), [])
+
+    def test_unquoted_item_then_quoted_item(self):
+        """RED on 56aebf56: the parent's sibling key leaves out blockquote depth, so the quoted `Maybe:` item is a sibling of the unquoted `Verified:` item."""
+        _, r = lint_report("labels_item_then_bq.md")
+        self.assertEqual(label_findings(r), [])
+
+    def test_quoted_lists_split_by_a_blank_line(self):
+        """RED on 56aebf56: the parent reads an unquoted blank line as a blank line inside the blockquote, so `Likely:` in the second blockquote is a sibling of `Observed:` in the first."""
+        _, r = lint_report("labels_bq_lists_blank.md")
+        self.assertEqual(label_findings(r), [])
+
+    def test_quoted_blank_line_keeps_the_list(self):
+        """Guard, passes on 56aebf56: a `>` blank line is inside the blockquote, so the items around it are siblings and `Perhaps:` is label-unknown."""
+        _, r = lint_report("labels_bq_loose_list.md")
+        self.assertEqual(label_findings(r), [("label-unknown", 3)])
+
+    def test_jira_star_lists_under_two_parents(self):
+        """RED on 56aebf56: the parent gives Jira items no parent, so `** Probably:` under the second item is a sibling of `** Verified:` under the first."""
+        _, r = lint_report("labels_jira_nested_parents.txt")
+        self.assertEqual(label_findings(r), [])
+
+    def test_jira_hash_lists_under_two_parents(self):
+        """RED on 56aebf56: the parent gives Jira items no parent, so `## Maybe:` under the second step is a sibling of `## Verified:` under the first."""
+        _, r = lint_report("labels_jira_nested_numbered.txt")
+        self.assertEqual(label_findings(r), [])
+
+    def test_jira_siblings_under_one_parent_and_after_a_nested_list(self):
+        """Guard, passes on 56aebf56: `**` items under one Jira parent are siblings, and so are the `*` items before and after them."""
+        _, r = lint_report("labels_jira_nested_siblings.txt")
+        self.assertEqual(label_findings(r), [("label-unknown", 5), ("label-unknown", 6)])
+
+
 class WrappedLabels(unittest.TestCase):
     def test_second_label_on_indented_continuation(self):
         """RED on e885c908: the parent reads the indented continuation line as a paragraph, so its `Hypothesis:` is not checked."""

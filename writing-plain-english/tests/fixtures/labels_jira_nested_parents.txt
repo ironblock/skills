@@ -1,0 +1,6 @@
+h3. Results
+
+* Observed: the first copy ended at noon.
+** Verified: the spare host ran it.
+* Observed: the second copy ended late.
+** Probably: the spare host was busy.
