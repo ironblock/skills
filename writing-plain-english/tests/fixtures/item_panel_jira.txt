@@ -1,0 +1,4 @@
+* The restore drill passed on the spare host before the weekend
+{panel:title=Steps for the next drill}
+Stop the sync job before the copy starts and start it again after the check.
+{panel}

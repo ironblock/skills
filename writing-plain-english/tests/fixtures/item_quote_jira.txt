@@ -1,0 +1,4 @@
+* Observed: the relay had forty messages in its queue at noon
+{quote}
+The night team says the relay has done this every Friday since the move.
+{quote}

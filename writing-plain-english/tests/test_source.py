@@ -1,13 +1,14 @@
-"""The lint's source: no stale comments, a docstring without provenance,
-stdlib imports only, and the word lists as constants. Also: no fixture
-text exists twice."""
+"""The lint's source: no stale comments, a docstring without provenance
+that states the error-direction and stop rules, stdlib imports only, and the
+word lists as constants. Also: the README beside the lint lists its known
+limits, and no fixture text exists twice."""
 import ast
 import hashlib
 import re
 import sys
 import unittest
 
-from helpers import FIXTURES, load_module, source
+from helpers import FIXTURES, LINT, load_module, source
 
 HEDGES = {"may", "might", "could", "possibly", "probably", "likely", "only", "just",
           "by itself", "alone", "appears", "seems", "suggests"}
@@ -33,6 +34,29 @@ class Source(unittest.TestCase):
         dates = len(re.findall(r"\d{4}-\d{2}-\d{2}", doc))
         places = len(re.findall(r"corpus|workspace", doc.lower()))
         self.assertEqual((dates, places), (0, 0), "(dates, corpus/workspace mentions)")
+
+    def test_docstring_states_the_error_direction_and_the_stop_rule(self):
+        """RED on f0892596: the parent's docstring states neither the error-direction rule nor the stop rule."""
+        doc = " ".join((ast.get_docstring(ast.parse(source())) or "").split()).lower()
+        phrases = ("a missed finding is cheaper than a false one",
+                   "count a word rather than guess its role",
+                   "it is not a parser", "known limits")
+        # Report only the phrases missing: the docstring itself must not reach the run's output.
+        self.assertEqual([p for p in phrases if p not in doc], [])
+
+    def test_readme_lists_known_limits_with_examples(self):
+        """RED on f0892596: the parent's README has no "Known limits" section.
+
+        Each entry is a list item with an example in backticks.
+        """
+        lines = (LINT.parent / "README.md").read_text(encoding="utf-8").splitlines()
+        start = next((n for n, line in enumerate(lines) if line.strip() == "## Known limits"), None)
+        self.assertIsNotNone(start, "no '## Known limits' heading")
+        end = next((n for n in range(start + 1, len(lines)) if lines[n].startswith("## ")), len(lines))
+        entries = [line for line in lines[start + 1:end] if line.startswith("- ")]
+        self.assertGreater(len(entries), 0)
+        # Report only counts: the README text must not reach the run's output.
+        self.assertEqual(sum("`" not in e for e in entries), 0, "entries without an example")
 
     def test_stdlib_imports_only(self):
         """Guard, passes on v1: every import is a standard-library module."""

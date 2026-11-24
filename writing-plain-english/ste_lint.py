@@ -23,18 +23,50 @@ DEFAULT_LABELS unless --labels names others. A label is read plain
 (Verified:) or bold (**Verified:**, **Verified**:, Jira *Verified:*).
 
 Before the checks, the lint skips a leading YAML frontmatter block, unwraps
-blockquotes, and removes code (fenced, {code}, {noformat}, `...`, {{...}}),
-URLs and link targets. Headings, table rows, thematic breaks, code blocks
-and whole-line bold labels are not linted. A paragraph or a list item takes
-in the paragraph text under it, indented or not (a Markdown lazy
-continuation). It ends at a blank line, a list marker, a heading (Markdown
-"#" or Jira hN.), a table row (led by "|", or under a GFM header row such
-as "a | b" over "---|---"), a thematic break (---, ***, ___, Jira ----), a
-code block (the line after it starts afresh), a line that opens a
+blockquotes, and removes code (fenced with ``` or ~~~, {code}, {noformat},
+`...`, {{...}}), Jira panel tags ({quote}, {panel}, {info}, {note}, {tip},
+{warning}), URLs and link targets. Headings, table rows, thematic breaks,
+code blocks and whole-line bold labels are not linted. A paragraph or a
+list item takes in the paragraph text under it, indented or not (a Markdown
+lazy continuation). It ends at a blank line, a list marker ("-", "+", "*",
+"1." or "1)", Jira "#" or "**"), a heading (Markdown "#" or setext, Jira
+hN.), a table row (led by "|", or under a GFM header row such as "a | b"
+over "---|---"), a thematic break (---, ***, ___, Jira ----), a code block
+(the line after it starts afresh), a Jira panel tag, a line that opens a
 blockquote ("> " one level deeper, or Jira bq.), or a bold label line. A
-line inside the same blockquote continues it. Each finding names the line
-it came from, as L<n>. Deterministic findings print first and heuristic
-ones after, each group in line order.
+line inside the same blockquote continues it. In Markdown, a line of "-" or
+"=" right under a paragraph line makes that paragraph a setext heading;
+Jira has no setext headings, so "----" there is a rule.
+
+In Markdown, a list item also holds the code blocks and paragraphs indented
+to its content column (where the text after its marker starts), after a
+blank line or not. Each one ends the item's paragraph but not the item or
+its list: the items before and after it are still siblings, and the
+sentences after it count toward the item's long-item and label checks. A
+line at a smaller indent that is not a lazy continuation ends the list.
+Jira lists have no content column.
+
+Each finding names the line it came from, as L<n>. Deterministic findings
+print first and heuristic ones after, each group in line order.
+
+Error direction. Where a construct is ambiguous, each check errs toward its
+cheap error. The prose checks (long-sentence, long-paragraph, long-item,
+semicolon, label-*) end a block early rather than join lines into it. A
+missed finding is cheaper than a false one, because a false finding makes
+the rewriting model change text that was fine. The inventory and --compare
+count a word rather than guess its role. A word counted in a role outside
+its class only adds a checklist item, but a real counter-clause hidden by a
+role guess is a fidelity miss. So a word is left out (NOT_COUNTERS) only in
+a fixed phrase that is never a counter-clause, concession, condition,
+reason, hedge or negation in any context. Resolving roles by syntax belongs
+to an optional parse layer, not to this file.
+
+Stop rule. This lint approximates CommonMark and Jira block structure; it
+is not a parser. It handles the constructs that are common in tickets:
+lists, nested lists, fences, blockquotes, tables, headings, thematic breaks
+and Jira panels such as {code}, {noformat} and {quote}. Rarer constructs
+are listed in README.md under "Known limits", each with an example, and are
+not handled here.
 
 --compare OLD NEW lists, for each token class, the tokens that disappeared
 and the tokens that appeared (a multiset difference). It also counts the
@@ -75,25 +107,33 @@ COUNTERS = ("but", "however", "although", "though", "yet", "whereas", "neverthel
 WORD_CLASSES = {"hedges": HEDGES, "conditions": CONDITIONS,
                 "reasons": REASONS, "negations": NEGATIONS, "counters": COUNTERS}
 
-# Counter words in roles that are not counter-clauses: "all but one" (all
-# except one), "not only ... but also" (and), "not yet" (still not), "yet
-# another", "as yet", "as though" (as if), and a manner "however" ("however
-# long it takes", "however you run it"). Each pattern matches one such use and
-# names the counter word as group w; that word is not counted. Any other
-# "however" ("However, the run failed") is counted, and "even though" matches
-# none of them, so it stays a counter-clause.
+# Counter words in fixed phrases that are not counter-clauses (the error-
+# direction rule in the module docstring): "all but", "anything but" or
+# "nothing but" before a number, a number word or "a few" (except), "not only
+# ... but also" (and), "not yet" (still not), "yet another", "as yet", "as
+# though" (as if), "however" before a degree word ("however long it takes")
+# and, in mid-clause, "however" before a pronoun and a word ("one file however
+# you call it"). Each pattern matches one such use and names the counter word
+# as group w; that word is not counted. Where the same words can start a
+# counter-clause they are counted: "all but the error remained", "anything
+# but smooth", a "however" at the start of a sentence or after a comma
+# ("However we found", ", however we saw"), and "even though".
+NUMBER_WORDS = ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+                "ten", "eleven", "twelve", "twenty", "thirty", "forty", "fifty", "sixty",
+                "seventy", "eighty", "ninety")
 HOWEVER_DEGREE = ("much", "many", "long", "often", "far", "hard", "few", "little", "large",
                   "small", "big", "good", "well", "fast", "slow", "slowly", "quickly",
                   "carefully", "early", "late")
 NOT_COUNTERS = (
-    r"\b(?:all|anything|nothing)\s+(?P<w>but)\b",
+    r"\b(?:all|anything|nothing)\s+(?P<w>but)\s+(?:\d|(?:" + "|".join(NUMBER_WORDS)
+    + r"|a\s+few)\b)",
     r"\bnot\s+only\b[^.!?]*?\b(?P<w>but)\s+also\b",
     r"\bnot\s+(?P<w>yet)\b",
     r"\b(?P<w>yet)\s+another\b",
     r"\bas\s+(?P<w>yet)\b",
     r"\bas\s+(?P<w>though)\b",
     r"\b(?P<w>however)\s+(?:" + "|".join(HOWEVER_DEGREE) + r")\b",
-    r"\b(?P<w>however)\s+(?:you|we|they)\s+[a-z]",
+    r"(?<=\w)\s+(?P<w>however)\s+(?:you|we|they)\s+(?=[a-z])",  # a word, not punctuation, before it
 )
 
 # Evidence labels for the label checks; --labels replaces the set.
@@ -132,8 +172,16 @@ invoke invokes replace replaces add implement remain""".split())
 FRONTMATTER = r"\A\ufeff?---[ \t]*\n(?:.*?\n)?---[ \t]*(?=\n|\Z)"
 QUOTE_PREFIX = r"[ \t]{0,3}(?:>[ \t]?)+"
 BLOCKQUOTE = r"(?m)^" + QUOTE_PREFIX
-CODE_BLOCKS = (r"\{code[^}]*\}(.*?)\{code\}", r"\{noformat\}(.*?)\{noformat\}", r"```(.*?)```")
+# A fence closes only at its own kind of fence, and whichever of ``` and ~~~
+# opens first wins, so a ``` inside a ~~~ block is code. A ~~~ fence closes at
+# a line of its own that holds 3 or more ~ and nothing else. A pattern's groups
+# hold a block's inside, one group per kind of block.
+CODE_BLOCKS = (r"\{code[^}]*\}(.*?)\{code\}", r"\{noformat\}(.*?)\{noformat\}",
+               r"```(.*?)```|~~~(.*?\n)[ \t]*~~~+[ \t]*(?m:$)")
 CODE_SPANS = (r"\{\{(.*?)\}\}", r"`([^`]*)`")
+# A Jira panel tag, opening or closing. strip_markup turns it into a line
+# break, so the panel's text is a paragraph of its own.
+JIRA_PANEL = r"\{(?:quote|panel|info|note|tip|warning)(?::[^}\n]*)?\}"
 # A citation or metadata span such as [S: file.py:12; other.py:40] is
 # provenance punctuation, not prose. The lint removes it after code (so a "]"
 # inside a code span cannot end the match) and before links.
@@ -152,10 +200,11 @@ PATH = r"""(?<![\w./~:@+-])(?:
     )(?<!\.)(?![\w/@+-])"""  # a final "." ends the sentence, not the path
 HASH = r"\b[0-9a-fA-F]{7,}\b"
 LIST_MARKER = r"(?m)^[ \t]*\d+[.)](?=[ \t])"
-# Block-level lines that end a paragraph or a list item (see _block_parts).
+# Block-level lines that end a paragraph or a list item (see paragraphs).
 THEMATIC_BREAK = r"^(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$"  # also Jira ----
+SETEXT_UNDERLINE = r"^(?:=+|-+)$"  # under a paragraph line, in Markdown only
 TABLE_DELIMITER = r"^\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?$"  # with a "|" in it
-CODE_OPENERS = ("```", "{code", "{noformat}")  # where a code block's source starts
+CODE_OPENERS = ("```", "~~~", "{code", "{noformat}")  # where a code block's source starts
 CODE_WORD = " CODE. "  # what strip_markup leaves of a code block
 JIRA_QUOTE = r"^bq\.\s"
 NUMBER = r"(?<![\w.])[vV]?\d(?:\w|[.,:/-](?=\d))*"
@@ -166,7 +215,7 @@ SENT_BREAK = r"[.!?][\"”’')\]]*\s+(?=[A-Z0-9\[\"“‘(*])"
 # Capital-initial abbreviations keep their period (case-sensitive on purpose:
 # a lowercase "no" entry would merge sentences ending in "no.").
 ABBREV = r"\b(e\.g|i\.e|etc|vs|approx|Fig|No|Sec)\."
-ITEM = r"^([*#-]+|\d+[.)])\s+(.*)"
+ITEM = r"^([*#-]+|\+|\d+[.)])\s+(.*)"
 # A label as written: plain (Verified:) or bold (**Verified:**, **Verified**:,
 # or Jira *Verified:*). {w} is the pattern of the label word.
 LABEL_FORMS = r"(?:{w}:|\*\*{w}:\*\*|\*\*{w}\*\*:|\*{w}:\*)(?=\s|$)"
@@ -182,6 +231,7 @@ _SUBS = [
     (CODE_BLOCKS[2], CODE_WORD, re.S, None),
     (CODE_SPANS[0], "X", 0, None),
     (CODE_SPANS[1], "X", 0, None),
+    (JIRA_PANEL, "\n", 0, None),
     (CITATION, " ", 0, None),
     (WIKI_LINK, None, 0, 1),  # keep link text
     (MD_LINK, None, 0, 1),  # keep link text
@@ -233,16 +283,33 @@ def strip_markup(text: str) -> str:
 
 
 def paragraphs(text: str, offs=None, raw=None):
-    """Yield (kind, text, offs, level) blocks; offs parallels text.
+    """Yield (kind, text, offs, key) blocks; offs parallels text.
 
     text is markup-free text, offs maps it to raw (its source), and raw is
     read for what stripping removed: blockquote prefixes and code block
-    markup. Without raw, text is its own source. kind is "para", "item"
-    (each list item is its own block; _block_parts says where one ends) or
-    "sep" (a skipped heading, bold label, table row, thematic break or code
-    block line, which ends a list). level is an item's (indent, marker), None
-    for the other kinds; the marker is the bullet as written ("*", "**",
-    "#", "-") or "1." / "1)" for a number.
+    markup. Without raw, text is its own source. kind is one of:
+
+      para  a paragraph outside every list item. It ends the lists above it.
+      item  the first paragraph of a list item. key is its sibling key: items
+            with one key are siblings in one list (the same indent, marker
+            and enclosing item, and no paragraph, code block or sep between
+            them at that level).
+      part  a later paragraph of an item, indented to its content column
+            after a code block or a blank line. key is the item's number (0
+            for the first item yielded).
+      sep   a skipped line: a heading, bold label, table row, thematic break,
+            or a code block line outside every item. It ends every list.
+
+    A line continues the paragraph above it, indented or not (a Markdown
+    lazy continuation), only when it is paragraph text. A list marker starts
+    an item. A GFM header row is a "|" line over a delimiter row such as
+    "---|---", and the "|" lines under it are rows. A Jira bq. line, or a
+    line one blockquote level deeper than the paragraph's first line, starts
+    a new paragraph. A line at the same or a shallower level continues it,
+    inside one blockquote or lazily after it. A line that starts a paragraph
+    or holds a code block belongs to the innermost open item whose content
+    column it reaches at the same blockquote depth. With no such item, it
+    ends every list. A blank line ends a paragraph, not a list.
     """
     if offs is None:
         offs = list(range(len(text)))
@@ -251,11 +318,102 @@ def paragraphs(text: str, offs=None, raw=None):
     # Dialect sniff: a document with Jira markers treats '# ' lines as
     # ordered-list steps; pure Markdown treats them as headings.
     wiki = bool(re.search(r"(?m)^h[1-6]\.\s", text) or "{{" in text)
-    pos = 0
-    for m in re.finditer(r"\n\s*\n", text):
-        yield from _block_parts(text[pos:m.start()], offs[pos:m.start()], wiki, raw)
-        pos = m.end()
-    yield from _block_parts(text[pos:], offs[pos:], wiki, raw)
+    lines, pos = [], 0  # (stripped line, indent, offset in text), None for a blank line
+    for line in text.split("\n"):
+        s = line.strip()
+        indent = len(line) - len(line.lstrip())
+        lines.append((s, indent, pos + indent) if s else None)
+        pos += len(line) + 1
+    code_lead = len(CODE_WORD) - len(CODE_WORD.lstrip())  # a code line's indent, less this, is its fence's
+    buf, buf_offs = [], []  # the open paragraph's lines
+    owner, key, first, depth = None, None, False, 0  # its item (None: no item), key, first?, quote depth
+    open_items = []  # innermost last: {"col": content column, "depth", "no": item number, "breaks"}
+    count = run = 0  # items started; paragraphs and seps outside every item
+    table = False
+
+    def flush():
+        if buf:
+            t, o = _join(buf, buf_offs)
+            if owner is None:
+                yield "para", t, o, None
+            elif first:
+                yield "item", t, o, key
+            else:
+                yield "part", t, o, owner["no"]
+
+    def holder(indent, d):
+        """The index in open_items of the innermost item that holds a line
+        at indent and blockquote depth d, or -1. Jira lists have no content
+        column, so in Jira no line is held."""
+        if wiki:
+            return -1
+        for k in range(len(open_items) - 1, -1, -1):
+            if open_items[k]["depth"] == d and indent >= open_items[k]["col"]:
+                return k
+        return -1
+
+    for i, line in enumerate(lines):
+        if line is None:
+            yield from flush()
+            buf, buf_offs, table = [], [], False
+            continue
+        s, indent, soff = line
+        src = offs[soff]
+        d = _quote_depth(raw, src)
+        nxt = lines[i + 1] if i + 1 < len(lines) else None
+        table = "|" in s and (table or (nxt is not None and _delimiter_row(nxt[0])))
+        code = s == CODE_WORD.strip() and raw.startswith(CODE_OPENERS, src)
+        if code:
+            k = holder(indent - code_lead, d)
+            if k >= 0:  # a code block in an item ends the item's paragraph, not the item
+                yield from flush()
+                buf, buf_offs = [], []
+                del open_items[k + 1:]
+                open_items[k]["breaks"] += 1
+                continue
+        setext = (not wiki and buf and owner is None and d == depth
+                  and re.match(SETEXT_UNDERLINE, s))
+        if setext or table or code or _skipped(s, wiki) or re.match(THEMATIC_BREAK, s):
+            if not setext:  # a setext heading's text is a heading, not prose
+                yield from flush()
+            buf, buf_offs = [], []
+            open_items.clear()
+            run += 1
+            yield "sep", "", [], None
+            continue
+        mi = re.match(ITEM, s)
+        if mi:
+            yield from flush()
+            k = holder(indent, d)
+            parent = open_items[k] if k >= 0 else None
+            del open_items[k + 1:]
+            gap = mi.start(2) - mi.end(1)  # 5 or more spaces: the text is indented code
+            owner = {"col": indent + mi.end(1) + (gap if gap <= 4 else 1), "depth": d,
+                     "no": count, "breaks": 0}
+            key = (run, parent and parent["no"], parent and parent["breaks"], indent,
+                   re.sub(r"\d+", "1", mi.group(1)))
+            open_items.append(owner)
+            count += 1
+            first, depth = True, d
+            t, o = mi.group(2), soff + mi.start(2)
+            buf, buf_offs = [t], [offs[o:o + len(t)]]
+            continue
+        if buf and (d > depth or re.match(JIRA_QUOTE, s)):
+            yield from flush()
+            buf, buf_offs = [], []
+        if not buf:  # a new paragraph: in the innermost item that holds it, or outside every list
+            k = holder(indent, d)
+            del open_items[k + 1:]
+            if k >= 0:
+                owner, first = open_items[k], False
+                owner["breaks"] += 1
+            else:
+                owner = None
+                run += 1
+            depth = d
+        buf.append(s)
+        buf_offs.append(offs[soff:soff + len(s)])
+    yield from flush()
 
 
 def _skipped(s, wiki):
@@ -271,69 +429,13 @@ def _quote_depth(raw, src):
     return m.group(0).count(">") if m else 0
 
 
-def _block_parts(block, boffs, wiki, raw):
-    """Paragraphs, items and seps of one blank-line-free block.
-
-    A line continues the paragraph or item above it, indented or not (a
-    Markdown lazy continuation), only when it is paragraph text. A list
-    marker starts an item. A sep ends the block: a skipped line, a table row
-    (a GFM header row is a "|" line over a delimiter row such as "---|---";
-    the "|" lines under it are rows), a thematic break, or a code block's
-    line (the line after it starts a new paragraph). A Jira bq. line, or a
-    line one blockquote level deeper than the block's first line, starts a
-    new paragraph. A line at the same or a shallower level continues the
-    block: inside one blockquote, or lazily after it.
-    """
-    lines = []
-    for m in re.finditer(r"[^\n]+", block):
-        line = m.group(0)
-        if line.strip():
-            indent = len(line) - len(line.lstrip())
-            lines.append((line.strip(), indent, m.start() + indent))
-    buf, buf_offs, level = [], [], None  # level is set while buf holds an item
-    depth, table = 0, False  # the block's blockquote depth; inside a GFM table
-
-    def flush():
-        if buf:
-            kind, t, o, _ = _join(buf, buf_offs, "item" if level else "para")
-            yield kind, t, o, level
-
-    for i, (s, indent, soff) in enumerate(lines):
-        src = boffs[soff]
-        header = i + 1 < len(lines) and _delimiter_row(lines[i + 1][0])
-        table = "|" in s and (table or header)
-        code = s == CODE_WORD.strip() and raw.startswith(CODE_OPENERS, src)
-        if table or code or _skipped(s, wiki) or re.match(THEMATIC_BREAK, s):
-            yield from flush()
-            buf, buf_offs, level = [], [], None
-            yield "sep", "", [], None
-            continue
-        d = _quote_depth(raw, src)
-        mi = re.match(ITEM, s)
-        if mi:
-            yield from flush()
-            t = mi.group(2)
-            o = soff + mi.start(2)
-            marker = re.sub(r"\d+", "1", mi.group(1))
-            buf, buf_offs, level, depth = [t], [boffs[o:o + len(t)]], (indent, marker), d
-            continue
-        if buf and (d > depth or re.match(JIRA_QUOTE, s)):
-            yield from flush()
-            buf, buf_offs, level = [], [], None
-        if not buf:
-            depth = d
-        buf.append(s)
-        buf_offs.append(boffs[soff:soff + len(s)])
-    yield from flush()
-
-
 def _delimiter_row(s):
     return "|" in s and bool(re.match(TABLE_DELIMITER, s))
 
 
-def _join(buf, buf_offs, kind):
-    """Join paragraph lines with spaces; each join space maps to the first
-    source offset of the line that follows it."""
+def _join(buf, buf_offs):
+    """(text, offs) of paragraph lines joined with spaces; each join space
+    maps to the first source offset of the line that follows it."""
     text, offs = "", []
     for i, (t, o) in enumerate(zip(buf, buf_offs)):
         if i:
@@ -341,7 +443,7 @@ def _join(buf, buf_offs, kind):
             offs.append(o[0])
         text += t
         offs += o
-    return kind, text, offs, None
+    return text, offs
 
 
 def sentences_map(par: str, poffs):
@@ -411,26 +513,31 @@ def _label_re(labels):
 def label_findings(items, labels, line_of):
     """label-twice, label-marker and label-unknown findings for list items.
 
-    items: [(text, offs, level, run)]. Siblings share a run (no paragraph,
-    heading or label line between them) and a level (indent and marker).
+    items: [{"parts": [(text, offs)], "key": key}], where an item's first
+    part is its first paragraph and items with one key are siblings (see
+    paragraphs). label-twice counts the labelled sentences of all the parts.
     """
     known = _label_re(labels)
     siblings = collections.defaultdict(list)
-    for text, _, level, run in items:
-        siblings[(run, level)].append(text)
+    for item in items:
+        siblings[item["key"]].append(item["parts"][0][0])
     out = []
-    for text, offs, level, run in items:
+    for item in items:
+        text, offs = item["parts"][0]
         line = line_of(offs[0]) if offs else 0
-        ptext, starts = sentence_starts(text)
-        found = [p for p in starts if known.match(ptext, p)]
-        if len(found) >= 2:
+        found = 0
+        for t, _ in item["parts"]:
+            ptext, starts = sentence_starts(t)
+            found += sum(1 for p in starts if known.match(ptext, p))
+        if found >= 2:
             out.append(("label-twice", text[:90], line))
-        for m in re.finditer(BRACKET_LABEL, text):
-            out.append(("label-marker", text[:90], line_of(offs[m.start()])))
+        for t, o in item["parts"]:
+            for m in re.finditer(BRACKET_LABEL, t):
+                out.append(("label-marker", t[:90], line_of(o[m.start()])))
         w = re.match(WORD_COLON, text)
         word = w and next(g for g in w.groups() if g)  # one group per label form
         if w and word not in labels and not known.match(text):
-            others = list(siblings[(run, level)])
+            others = list(siblings[item["key"]])
             others.remove(text)
             if any(known.match(o) for o in others):
                 out.append(("label-unknown", text[:90], line))
@@ -446,19 +553,20 @@ def lint(name: str, raw: str, labels=DEFAULT_LABELS):
         return bisect.bisect_right(line_starts, src)
 
     nsent = 0
-    run = 0
-    for kind, block, boffs, level in paragraphs(text, offs, raw):
-        if kind == "item":
-            items.append((block, boffs, level, run))
-        else:
-            run += 1  # a paragraph or a skipped line ends the list
+    for kind, block, boffs, key in paragraphs(text, offs, raw):
         if kind == "sep":
             continue
         sents = sentences_map(block, boffs)
-        if len(sents) > MAX_PARAGRAPH_SENTENCES:  # the same limit for an item
-            findings.append(("long-paragraph" if kind == "para" else "long-item",
-                             f"{len(sents)} sentences: {block[:70]}…",
-                             line_of(boffs[0]) if boffs else 0))
+        if kind == "para":
+            if len(sents) > MAX_PARAGRAPH_SENTENCES:
+                findings.append(("long-paragraph", f"{len(sents)} sentences: {block[:70]}…",
+                                 line_of(boffs[0]) if boffs else 0))
+        else:
+            if kind == "item":  # "at": where a long-item finding goes, before the item's other findings
+                items.append({"parts": [], "key": key, "sentences": 0, "at": len(findings)})
+            item = items[-1] if kind == "item" else items[key]
+            item["parts"].append((block, boffs))
+            item["sentences"] += len(sents)
         for s, soffs in sents:
             n = len(words(s))
             lens.append(n)
@@ -471,6 +579,11 @@ def lint(name: str, raw: str, labels=DEFAULT_LABELS):
             for c, cstart in noun_cluster_spans(s):
                 findings.append(("noun-cluster", c,
                                  line_of(soffs[cstart]) if cstart < len(soffs) else sl))
+    for item in reversed(items):  # the paragraph limit, over all of an item's paragraphs
+        if item["sentences"] > MAX_PARAGRAPH_SENTENCES:
+            block, boffs = item["parts"][0]
+            findings.insert(item["at"], ("long-item", f"{item['sentences']} sentences: {block[:70]}…",
+                                         line_of(boffs[0]) if boffs else 0))
     findings += label_findings(items, labels, line_of)
     # Deterministic classes first, then heuristics; stable by line (and by
     # original order within a line) so a reader never re-sorts the classes.
@@ -483,7 +596,7 @@ def _collapse(s):
 
 
 def _code_block_token(m):
-    inner = m.group(1)
+    inner = next(g for g in m.groups() if g is not None)  # the kind of block that matched
     body = inner.split("\n", 1)[1] if "\n" in inner else inner  # drop the info string line
     first = next((ln.strip() for ln in body.splitlines() if ln.strip()), "(empty)")
     return f"{hashlib.sha256(body.encode('utf-8')).hexdigest()[:12]} {first[:40]}"

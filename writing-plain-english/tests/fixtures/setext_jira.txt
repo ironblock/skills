@@ -1,0 +1,5 @@
+h2. Network plan
+
+The spare switch stays in the cabinet until the new one passes its burn-in test; the network team checks it on Friday.
+----
+The vendor sends an engineer on the first day of the move.

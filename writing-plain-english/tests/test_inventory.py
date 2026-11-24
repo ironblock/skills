@@ -110,20 +110,21 @@ def counters(name):
 
 
 class CounterRoles(unittest.TestCase):
-    """A counter word in another role is not a counter-clause. Each fixture's
-    line 2 holds the same word as a counter-clause, which is still counted."""
+    """A counter word in a fixed phrase that is never a counter-clause is not
+    counted. Each fixture's line 2 holds the same word as a counter-clause,
+    which is still counted."""
 
     def test_all_but(self):
         """RED on b24a2d58: the parent counts the `but` of `All but one` as a counter-clause."""
         self.assertEqual(counters("role_all_but.md"), [("but", 2)])
 
     def test_anything_but(self):
-        """RED on b24a2d58: the parent counts the `but` of `anything but` as a counter-clause."""
-        self.assertEqual(counters("role_anything_but.md"), [("but", 2)])
+        """Guard, passes on f0892596: the `but` of `anything but a few` is not counted, and the control on line 2 is."""
+        self.assertEqual(counters("role_anything_but_few.md"), [("but", 2)])
 
     def test_nothing_but(self):
-        """RED on b24a2d58: the parent counts the `but` of `nothing but` as a counter-clause."""
-        self.assertEqual(counters("role_nothing_but.md"), [("but", 2)])
+        """Guard, passes on f0892596: the `but` of `nothing but` before a number is not counted, and the control on line 2 is."""
+        self.assertEqual(counters("role_nothing_but_number.md"), [("but", 2)])
 
     def test_not_only_but_also(self):
         """RED on b24a2d58: the parent counts the `but` of `not only ... but also` as a counter-clause."""
@@ -153,8 +154,46 @@ class CounterRoles(unittest.TestCase):
         self.assertEqual(counters("role_however_degree.md"), [("However", 2)])
 
     def test_however_before_a_pronoun_and_verb(self):
-        """RED on b24a2d58: the parent counts the `However` of `However you start the service` as a counter-clause."""
-        self.assertEqual(counters("role_however_pronoun.md"), [("however", 2)])
+        """Guard, passes on f0892596: the `however` of `one log file however you call it` is not counted, and the control on line 2 is."""
+        self.assertEqual(counters("role_however_mid_clause.md"), [("however", 2)])
+
+
+class CountedRoles(unittest.TestCase):
+    """Where a phrase can also start a counter-clause, its counter word is
+    counted, whatever its role in this text: the error-direction rule in
+    the lint's docstring. Each fixture's counter words are all counted."""
+
+    def test_all_but_before_a_clause(self):
+        """RED on f0892596: the parent leaves out every `all but`, so two counter-clauses written without a comma are not counted."""
+        self.assertEqual(counters("role_all_but_clause.md"), [("but", 1), ("but", 2)])
+
+    def test_anything_but_before_a_clause(self):
+        """RED on f0892596: the parent leaves out every `anything but`, so `anything but the build still broke` is not counted."""
+        self.assertEqual(counters("role_anything_but_clause.md"), [("but", 1)])
+
+    def test_nothing_but_before_a_clause(self):
+        """RED on f0892596: the parent leaves out every `nothing but`, so `nothing but the tests failed again` is not counted."""
+        self.assertEqual(counters("role_nothing_but_clause.md"), [("but", 1)])
+
+    def test_anything_but_before_an_adjective(self):
+        """RED on f0892596: the parent leaves out the `but` of `anything but smooth`, a role guess; only a number, a number word or `a few` after it makes a fixed phrase."""
+        self.assertEqual(counters("role_anything_but.md"), [("but", 1), ("but", 2)])
+
+    def test_nothing_but_before_a_noun(self):
+        """RED on f0892596: the parent leaves out the `but` of `nothing but timeouts`, a role guess; only a number, a number word or `a few` after it makes a fixed phrase."""
+        self.assertEqual(counters("role_nothing_but.md"), [("but", 1), ("but", 2)])
+
+    def test_however_at_a_sentence_start(self):
+        """RED on f0892596: the parent leaves out a `However` before a pronoun, so the counter-clause `However we saw the same error` is not counted."""
+        self.assertEqual(counters("role_however_initial.md"), [("However", 1)])
+
+    def test_however_after_a_comma(self):
+        """RED on f0892596: the parent leaves out a `however` before a pronoun, so the clause-initial `, however we still need` is not counted."""
+        self.assertEqual(counters("role_however_comma.md"), [("however", 1)])
+
+    def test_however_manner_at_a_sentence_start(self):
+        """RED on f0892596: the parent leaves out the sentence-initial `However you start the service`, which has the shape of a counter-clause."""
+        self.assertEqual(counters("role_however_pronoun.md"), [("However", 1), ("however", 2)])
 
 
 class MultiWordClaims(unittest.TestCase):
@@ -168,21 +207,40 @@ class MultiWordClaims(unittest.TestCase):
         self.assertEqual(pairs(d["words"]["hedges"], "word"), [("Only", 2)])
 
 
+class CodeBlocks(unittest.TestCase):
+    def test_tilde_fence_is_a_code_block(self):
+        """RED on f0892596: the parent does not read `~~~` as a fence, so it lists no code block and lists the numbers inside the fence as number tokens."""
+        _, d = run_json("inventory", "tilde_fence_backticks.md")
+        blocks = pairs(d["tokens"]["code-blocks"], "token")
+        self.assertEqual(len(blocks), 1)
+        self.assertRegex(blocks[0][0], r"^[0-9a-f]{12} step 4 of 4: copy ```")
+        self.assertEqual(blocks[0][1], 2)
+        self.assertEqual(d["tokens"]["numbers"], [])
+
+
 class Scale(unittest.TestCase):
     def test_word_counts_scale_linearly(self):
-        """RED on b24a2d58: the parent checks each word hit against every counter-clause span, so a 370 KB text takes more than 2.5 s.
+        """Guard, passes on f0892596: the word count is linear, so 4 times the text takes less than 8 times as long.
 
-        The text repeats one fixture line 3600 times. Where this test was
-        written, the parent took about 11 s and the linear count about 0.6 s,
-        so the bound sits a factor of about 4 from each.
+        The text repeats one fixture line 400 and 1600 times. The two sizes
+        are timed in turn, 3 times each, and each keeps its fastest run, so
+        the verdict is a ratio on one machine at one time, not a wall-clock
+        bound. Where this test was written, the ratio was about 4 here and
+        about 12 for b24a2d58, which checks each word hit against every
+        counter-clause span.
         """
         mod = load_module()
-        text = (FIXTURES / "scale_unit.md").read_text(encoding="utf-8") * 3600
-        start = time.perf_counter()
-        words = mod.extract(text)["words"]
-        elapsed = time.perf_counter() - start
-        self.assertEqual(len(words["counters"]), 3 * 3600)
-        self.assertLess(elapsed, 2.5)
+        unit = (FIXTURES / "scale_unit.md").read_text(encoding="utf-8")
+        sizes = (400, 1600)
+        best = [float("inf")] * len(sizes)
+        for _ in range(3):
+            for k, n in enumerate(sizes):
+                text = unit * n
+                start = time.perf_counter()
+                found = mod.extract(text)["words"]["counters"]
+                best[k] = min(best[k], time.perf_counter() - start)
+                self.assertEqual(len(found), 3 * n)
+        self.assertLess(best[1] / best[0], 8)
 
 
 if __name__ == "__main__":

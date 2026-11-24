@@ -1,0 +1,6 @@
+h3. Findings
+
+* Verified: the archive job copied every folder.
+
+  Inferred: the job ran on the old host.
+* Observed: the copy took an hour.
