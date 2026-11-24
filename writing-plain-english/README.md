@@ -17,6 +17,9 @@ Block structure:
 - The dialect is sniffed from Jira `hN.` headings: a closed `{{...}}` span is stripped before the sniff reads the text, so a Jira text with no `hN.` heading is read as Markdown. Its `# ` lines are headings, and a `----` rule right under a paragraph line makes that paragraph a setext heading: `Run the export twice; check the log after each run.` / `----` makes no finding.
 - In a Jira text read as Markdown, an indented paragraph after a blank line is part of the item above it, as in Markdown: `* Verified: the copy ran.` / (blank line) / `  Inferred: it ran on the spare host.` is a label-twice finding.
 - Jira inline macros such as `{color}` are read as text, so their names count as words: `The {color:red}export failed{color} twice last night on the spare host before the backup window closed and the night shift came in for the late jobs.` reads a 25-word sentence as 28 words.
+- A tight interleave of quote depths keeps the outer items as one list: `- Verified: the copy ran.` / `> - Reported: the owner says it ran twice.` / `- Probably: the timer fired.` gives a label-unknown on the last line.
+- Jira nesting (`**`, `##`) and Jira panels (`{quote}`, `{panel}`) end or split lists only when the text is sniffed as Jira; a Jira description with no `hN.` heading is read as Markdown, so `**` items under two parents are siblings.
+- The four fixed-phrase exclusions can match across a line break, so a heading or an unpunctuated item that ends in "not" or "as" hides a counter word that opens the next paragraph: `## Why the export is not` / (blank line) / `Yet the copy ran.` does not count the "Yet".
 
 Word roles (the inventory and `--compare` count a word rather than guess its role):
 
