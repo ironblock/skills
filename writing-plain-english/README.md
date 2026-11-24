@@ -1,4 +1,8 @@
-Scratch rebuild of a plain-English lint. Nothing here comes from any organization's private work. Nothing leaves this repo without the maintainer's review. Park rule: see the maintainer's plan (private).
+# ste_lint.py
+
+The lint that `SKILL.md` runs. It reports long sentences, long paragraphs and items, semicolons and evidence-label problems (`--strict` exits 1 on these), lists a source's numbers, code, links, hedges, conditions, reasons, counter-clauses and negations (`inventory`), and shows what a rewrite dropped or added (`--compare`). It is one file, standard library only.
+
+Every check was written test-first. `tests/` holds the suite (`python3 -m unittest discover -s tests`), and `RED*.txt` and `GREEN*.txt` record each round: the new tests failing against the previous version, then passing. `tests/record.py` writes them.
 
 ## Known limits
 
