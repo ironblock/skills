@@ -12,7 +12,7 @@ Lint checks:
   long-item       a list item of more than 4 sentences
   semicolon       a semicolon inside a sentence
   label-twice     a list item where two sentences start with an evidence label
-  label-marker    a bracket marker such as [V] left in a list item
+  label-marker    a bracket marker such as [V] or [Verified] left in a list item (not an author tag)
   label-unknown   a list item that starts with an unlisted "Word:", in a list
                   where a sibling item starts with a listed label
   noun-cluster    4 or more content words in a row with no known verb
@@ -535,7 +535,12 @@ def label_findings(items, labels, line_of):
             out.append(("label-twice", text[:90], line))
         for t, o in item["parts"]:
             for m in re.finditer(BRACKET_LABEL, t):
-                out.append(("label-marker", t[:90], line_of(o[m.start()])))
+                # A marker is a short code ([V], [Inf]) or a label word in brackets ([Verified]).
+                # An author or status tag ([Dispatch], [TODO]) is not one: flagging it would be a
+                # false finding, and the prose checks err toward a missed one (the rule above).
+                word = m.group(0)[1:-1]
+                if len(word) <= 3 or word.lower() in {x.lower() for x in labels}:
+                    out.append(("label-marker", t[:90], line_of(o[m.start()])))
         w = re.match(WORD_COLON, text)
         word = w and next(g for g in w.groups() if g)  # one group per label form
         if w and word not in labels and not known.match(text):

@@ -17,6 +17,16 @@ class LabelChecks(unittest.TestCase):
         _, r = lint_report("labels_marker.md")
         self.assertEqual(label_findings(r), [("label-marker", 2)])
 
+    def test_author_tags_are_not_markers(self):
+        """RED on 7b101ef: any [Xxxx] bracket in an item is flagged, so "[Dispatch]" and "[TODO]" give false label-marker findings."""
+        _, r = lint_report("labels_marker_author_tags.md")
+        self.assertEqual(label_findings(r), [])
+
+    def test_short_codes_and_label_words_are_markers(self):
+        """Guard: a 1-3 letter code and a label word in brackets are still flagged after the narrowing."""
+        _, r = lint_report("labels_marker_codes.md")
+        self.assertEqual(label_findings(r), [("label-marker", 1), ("label-marker", 2)])
+
     def test_unknown_label_beside_a_known_one(self):
         """RED on v1: v1 has no label checks, so `Probably:` beside `Verified:` siblings passes."""
         _, r = lint_report("labels_unknown.md")

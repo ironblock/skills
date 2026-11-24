@@ -1,0 +1,2 @@
+- [Verified] the copy finished at noon.
+- [Inf] the timer fired twice.

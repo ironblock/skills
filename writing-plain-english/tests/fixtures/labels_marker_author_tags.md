@@ -1,0 +1,3 @@
+- [Dispatch] The export ran twice on the spare host.
+- [TODO] Check the retention window before the next release.
+- Verified: the copy finished at noon.
