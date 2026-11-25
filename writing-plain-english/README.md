@@ -2,7 +2,7 @@
 
 The lint that `SKILL.md` runs. It reports long sentences, long paragraphs and items, semicolons and evidence-label problems (`--strict` exits 1 on these), lists a source's numbers, code, links, hedges, conditions, reasons, counter-clauses and negations (`inventory`), and shows what a rewrite dropped or added (`--compare`). It is one file, standard library only.
 
-Every check was written test-first. `tests/` holds the suite (`python3 -m unittest discover -s tests`), and `RED*.txt` and `GREEN*.txt` record each round: the new tests failing against the previous version, then passing. `tests/record.py` writes them.
+Every check was written test-first: each round's new tests failed against the previous version, then passed. `tests/` holds the suite (`python3 -m unittest discover -s tests`). `tests/record.py red <parent>` runs this tree's tests against the parent commit's lint, which shows the new tests failing. `tests/record.py green <parent>` runs them against the current lint.
 
 ## Known limits
 
