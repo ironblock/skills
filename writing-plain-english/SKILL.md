@@ -13,22 +13,35 @@ This skill covers two jobs: rewriting someone else's text, and writing your own.
 
 ## Rewriting someone else's text
 
-Change as little as you can. You are fixing what stops a cold reader, not redoing the ticket. Fix these:
-- A sentence that `ste_lint.py --strict` flags as long, or for a semicolon: split it.
-- Steps, conditions or branches folded into one paragraph: put them in a list. Give each branch its own short block ("If the cache is warm: …").
-- A reference into a session or thread that the ticket's own text resolves: name the thing. For example, "the fix above" becomes the fix's name when the ticket names it two lines up.
+Change as much as is necessary, and as little as possible. The meaning is fixed. The shape is yours to fix wherever it stops a cold reader.
 
-Leave everything else as it is, word for word. A sentence the lint doesn't flag keeps its exact words, and that includes the done conditions. Keep each term as the source writes it, without swapping it for a synonym or a more specific name. Also keep the source's headings, checkboxes and links.
+These are necessary:
+- **One idea per sentence.** Split a sentence that carries more than one idea, whether or not the lint flags it. The lint's long-sentence and semicolon findings are the minimum, not the whole job.
+- **Separate ideas in separate bullets.** When a sentence or a paragraph lists several separate things (findings, options, requirements), give each one its own bullet.
+- **Steps, conditions and branches in lists.** Give each branch its own short block ("If the cache is warm: …").
+- **Active voice with a named actor,** when the source's passive voice hides who acts and the source says who it is.
+- **Phrases with a verb instead of noun stacks.** "Per-run directory allocation rules" becomes "rules that give each run its own directory".
+- **Plain words instead of the habits of machine-written text:**
+  - Write an arrow used in place of a verb as words. "Disk full → upload stopped" becomes "when the disk is full, the upload stops".
+  - Replace a coined, hyphenated label that appears only in this ticket with plain words that say the same thing.
+  - Use a common word instead of an unusual one.
+  - Keep one tense within a claim.
+- **Names for references the ticket resolves.** When a reference into a session or thread is resolved by the ticket's own text, name the thing. For example, "the fix above" becomes the fix's name when the ticket names it two lines up.
 
-If a sentence can be read two ways, keep its words. Don't pick one reading for the reader.
+These stay as the source has them:
+- **Every claim, with its condition, hedge, scope, source, number and link,** at the same strength. The inventory below lists them.
+- **Project terms.** A term the project defines or uses elsewhere (a code name, a field, a tool) keeps its exact form. Only a coinage that lives in this ticket alone may be replaced.
+- **The done conditions' force.** You may split them into a list. Each condition and limit keeps its exact force: "the first `limit` lines" stays "the first `limit` lines".
+- **Headings, checkboxes and links.**
+- **A sentence that can be read two ways.** Keep its words. Don't pick one reading for the reader.
 
-If the lint flags nothing, and nothing is folded or resolvable, the ticket needs no rewrite. Write it out unchanged, and say so in your reply.
+If nothing above needs fixing, the ticket needs no rewrite. Write it out unchanged, and say so in your reply.
 
 When you split a sentence, each new sentence keeps what governed the old one: its condition, its hedge, its scope and its source. For example, take "The sample config says checkpoints resume every 2,048 tokens and are kept in the recurrent cache." Split, it becomes "The sample config says checkpoints resume every 2,048 tokens. The sample config also says they are kept in the recurrent cache."
 
 Each piece is a whole sentence that names its subject. Don't start one with "It" or "This" if the reader could not tell what that means.
 
-When one condition governs several clauses, write the condition once and list the clauses under it. For example, "Below the threshold, the reformat is rejected, the parser's output stands, and an event is logged" becomes "Below the threshold:" followed by a list of the three clauses.
+When one condition governs several clauses, write the condition once and list the clauses under it. For example, "When the disk is full, the upload stops, the queue keeps its files, and a warning is sent" becomes "When the disk is full:" followed by a list of the three clauses.
 
 A quotation is someone's exact words. Keep it word for word, with its quotation marks, even when the lint flags it.
 
@@ -37,7 +50,14 @@ Leave a flagged sentence whole when you can't split it safely. That is when you 
 Add nothing that the source doesn't say. In particular, don't add any of these:
 - **A status line,** unless the source has a sentence that states one. A "Kind:" line or an author tag such as "[Dispatch]" is not a status. Keep it as it is.
 - **A done condition or steps,** if the source has none.
-- **An evidence label** on a claim the source states without one. A flat statement stays flat. A list of suspects or options stays a list of options.
+- **An evidence label the source doesn't support.** A label may replace a phrase in the source that says how a claim is known:
+  - "likely", "probably" or "we think" becomes Inferred.
+  - "we measured" or "the log shows" becomes Observed.
+  - "confirmed by" a named check becomes Verified.
+  - "X says" becomes Reported, naming X.
+  - "it is unknown whether" becomes Unknown.
+
+  A claim the source states flatly stays flat, with no label. A list of suspects or options stays a list of options.
 - **Who said something,** if the source doesn't say.
 - **A definition of a term.** The reader works on this project. If you don't know what a term means, leave it, and mention it in your reply instead of in the ticket.
 - **An "Unknown" bullet** for something you couldn't work out. Use "Unknown" only for open questions the source itself raises.
