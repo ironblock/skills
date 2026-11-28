@@ -1,114 +1,88 @@
 ---
 name: writing-plain-english
-description: Use when writing or rewriting a ticket, pull request description, design note or report for a reader who was not in your session (a teammate, a future agent, a reviewer). Also use when a draft has long sentences, chains of clauses, project terms nobody defined, or references like "the fix above" that only make sense inside the session.
+description: Use when writing or rewriting a ticket, pull request description, design note, handoff or report for a reader who was not in the session, including readers of English as a second language or through machine translation. Also use when a draft has long sentences, semicolons, arrows used as verbs, idioms, noun stacks, if/else steps in one list, references like "the fix above", or evidence labels (Verified, Observed, Reported, Inferred, Unknown) that must survive a rewrite.
 ---
 
-# Writing for a reader who wasn't there
+# Plain English for a reader who wasn't there
 
-The reader of a ticket has the ticket and the project's shared files, but not your session. They need to find out quickly what is wanted, what is known, and when the work is done.
+The reader has your text and the project's files, but not your session. Many readers read English as a second language, and some read it through machine translation. Write so that each sentence has only one reading.
 
-Long sentences are not what makes most tickets hard to act on. Missing structure is, and so are references to things the reader never saw.
+This skill has two jobs. If you have a source text to rewrite, its claims are fixed, and only the shape and the sentences change. If you write your own text, you know how you know each claim, so you say it.
 
-This skill covers two jobs: rewriting someone else's text, and writing your own.
+## Shape
 
-## Rewriting someone else's text
+Use these parts in this order. Leave out a part that has no content. The part names are structure, so add them to a rewrite that needs them.
 
-Change as much as is necessary, and as little as possible. The meaning is fixed. The shape is yours to fix wherever it stops a cold reader.
-
-These are necessary:
-- **One idea per sentence.** Split a sentence that carries more than one idea, whether or not the lint flags it. The lint's long-sentence and semicolon findings are the minimum, not the whole job.
-- **Separate ideas in separate bullets.** When a sentence or a paragraph lists several separate things (findings, options, requirements), give each one its own bullet.
-- **Steps, conditions and branches in lists.** Give each branch its own short block ("If the cache is warm: …").
-- **Active voice with a named actor,** when the source's passive voice hides who acts and the source says who it is.
-- **Phrases with a verb instead of noun stacks.** "Per-run directory allocation rules" becomes "rules that give each run its own directory".
-- **Plain words instead of the habits of machine-written text:**
-  - Write an arrow used in place of a verb as words. "Disk full → upload stopped" becomes "when the disk is full, the upload stops".
-  - Replace a coined, hyphenated label that appears only in this ticket with plain words that say the same thing.
-  - Use a common word instead of an unusual one.
-  - Keep one tense within a claim.
-- **Names for references the ticket resolves.** When a reference into a session or thread is resolved by the ticket's own text, name the thing. For example, "the fix above" becomes the fix's name when the ticket names it two lines up.
-
-These stay as the source has them:
-- **Every claim, with its condition, hedge, scope, source, number and link,** at the same strength. The inventory below lists them.
-- **Project terms.** A term the project defines or uses elsewhere (a code name, a field, a tool) keeps its exact form. Only a coinage that lives in this ticket alone may be replaced.
-- **The done conditions' force.** You may split them into a list. Each condition and limit keeps its exact force: "the first `limit` lines" stays "the first `limit` lines".
-- **Headings, checkboxes and links.**
-- **A sentence that can be read two ways.** Keep its words. Don't pick one reading for the reader.
-
-If nothing above needs fixing, the ticket needs no rewrite. Write it out unchanged, and say so in your reply.
-
-When you split a sentence, each new sentence keeps what governed the old one: its condition, its hedge, its scope and its source. For example, take "The sample config says checkpoints resume every 2,048 tokens and are kept in the recurrent cache." Split, it becomes "The sample config says checkpoints resume every 2,048 tokens. The sample config also says they are kept in the recurrent cache."
-
-Each piece is a whole sentence that names its subject. Don't start one with "It" or "This" if the reader could not tell what that means.
-
-When one condition governs several clauses, write the condition once and list the clauses under it. For example, "When the disk is full, the upload stops, the queue keeps its files, and a warning is sent" becomes "When the disk is full:" followed by a list of the three clauses.
-
-A quotation is someone's exact words. Keep it word for word, with its quotation marks, even when the lint flags it.
-
-Leave a flagged sentence whole when you can't split it safely. That is when you aren't sure how a clause parses, or when one clause happens because of another and a split would cut that link. A long sentence is cheaper than a wrong one.
-
-Add nothing that the source doesn't say. In particular, don't add any of these:
-- **A status line,** unless the source has a sentence that states one. A "Kind:" line or an author tag such as "[Dispatch]" is not a status. Keep it as it is.
-- **A done condition or steps,** if the source has none.
-- **An evidence label the source doesn't support.** A label may replace a phrase in the source that says how a claim is known:
-  - "likely", "probably" or "we think" becomes Inferred.
-  - "we measured" or "the log shows" becomes Observed.
-  - "confirmed by" a named check becomes Verified.
-  - "X says" becomes Reported, naming X.
-  - "it is unknown whether" becomes Unknown.
-
-  A claim the source states flatly stays flat, with no label. A list of suspects or options stays a list of options.
-- **Who said something,** if the source doesn't say.
-- **A definition of a term.** The reader works on this project. If you don't know what a term means, leave it, and mention it in your reply instead of in the ticket.
-- **An "Unknown" bullet** for something you couldn't work out. Use "Unknown" only for open questions the source itself raises.
-
-The meaning stays fixed. Before you start, list what the source contains:
-
-    python3 <this skill's folder>/ste_lint.py inventory OLD.md
-
-It lists the source's numbers, code, links, hedges ("may", "likely", "only"), conditions ("if", "unless"), reasons ("because"), counter-clauses ("but") and negations, each with its line number. Each one should still be in your version, attached to the same claim, with the same strength. Also keep who said or decided something, and where a finding came from.
-
-Some items on the list are false alarms, such as a "but" that means "except". Skip those: the list is a checklist, not a verdict.
-
-## Writing your own
-
-Use this order, and leave out any part that has nothing in it:
-
-1. **Status**, in one sentence, if there is one to state ("This is a partial fix.").
-2. **What to do**: the steps. Number them only when the order matters.
-3. **Branches**: when the work depends on a condition, give each case its own short block. Don't fold both cases into one list.
-4. **Done when**: conditions that are true when the work is finished ("The export includes archived records."). These are not more steps.
-5. **What is known**: the evidence, one claim per bullet, each starting with how it is known:
-   - **Verified:** it was checked, and you name or link the check.
-   - **Observed:** it was seen happening, but not checked.
-   - **Reported:** someone said so. Name who.
-   - **Inferred:** you reasoned it from other evidence. Name the evidence.
-   - **Unknown:** an open question that matters for the work.
-
-   If the project has its own words for these, use them.
-6. **Links**: related tickets, what this depends on, and what must land first.
-
-You can use a term bare if it is defined somewhere every worker on the project reads. That means the README, the docs, AGENTS.md, a glossary or the code. If a term exists only in your session or your notes, explain it in one clause the first time you use it. If the project already has a name for the thing, use the project's name instead of yours.
-
-Replace references into your session ("the fix above", "as we found earlier", "this approach") with what they refer to.
+1. **Status:** one sentence, only if the source or your work states one.
+2. **What to do:** the steps. One action in each step, in the imperative. Number the steps only when the order matters.
+3. **If <condition>:** one block for each branch, at the top level, with its own steps. Use **Otherwise:** for the other case.
+4. **Done when:** each item has the form "[When <trigger>,] <named thing> <observable result>." Write one result in each item.
+5. **Rules:** what must stay true for the whole task. In your own writing, use "must" or "must not".
+6. **What is known:** one claim in each bullet, with its label (see Evidence).
+7. **Links:** related work, what this depends on, and what must land first.
 
 ## Sentences
 
-- Keep a sentence to about 25 words, and a paragraph to about 4 sentences. Put steps and conditions in lists.
-- Put one idea in each sentence. Use active voice with a named actor, unless the actor doesn't matter.
-- Write "rules that give each run its own directory", not a stack of nouns like "per-run directory allocation rules".
-- Use one word for one thing. Don't switch from "review" to "approval" for variety. If you need to be specific, qualify the word ("code review").
+- A step, a Done when item or a rule has at most 20 words. Other sentences have at most 25.
+- A paragraph has at most 4 sentences. Put three or more parallel items in a list.
+- Use no semicolons. Write an arrow used as a verb as words: "Disk full → upload stopped" becomes "When the disk is full, the upload stops."
+- Write whole sentences. Keep the articles and the word "that": "The log shows that the job failed." Write "is not", not "isn't".
+- Put the condition first: "If the cache is cold, rebuild it."
+- Name the actor: "The scheduler retries the job", not "The job is retried".
+- Put at most three nouns in a row: "rules that give each run its own directory".
+- Use one name for one thing. Qualify a word instead of changing it: "code review".
+- When you split a sentence, keep its link word: "The disk filled. So the upload stopped."
+- Start a sentence with its subject's name when "It" or "This" could point to two things.
 
-## Check before you hand it on
+## Words that a second-language reader can misread
 
-1. Run `python3 <this skill's folder>/ste_lint.py --strict NEW.md`. It reports long sentences, long paragraphs, semicolon chains and label problems. Fix them, unless a split would separate a claim from its reason or its condition, or you can't tell how a clause parses. Its `noun-cluster` lines are only hints: change the phrase only if it really is a stack of nouns.
-2. When you rewrite, run `python3 <this skill's folder>/ste_lint.py --compare OLD.md NEW.md`. It lists what disappeared and what appeared. A hedge, condition or reason that disappeared has changed the claim. Put it back, unless you moved it into another sentence about the same claim.
-3. When you rewrite, read your version against the source one last time. Anything in yours that the source doesn't say comes out.
-4. Read your version as someone who wasn't there. Can you say what the problem is, and when the work is done, in one sentence each?
+- Replace idioms and slang: "footgun", "yak shave", "low-hanging fruit".
+- Replace generic phrasal verbs: "look into" becomes "investigate", and "figure out" becomes "find". Keep a phrasal verb that names a command or an action, such as "roll back" or "check out". Use its noun form as a noun: "the rollback".
+- Replace "since", "as", "while" and "once" with a word that has one meaning: "because", "after", "during", "although" or "when".
+- Write "for example" and "that is". Name the items instead of "etc.".
+- Write "about 200 ms", not "~200ms". Write dates as YYYY-MM-DD and times with a time zone.
+- Ask a question in the positive: "Is the job running?", not "Isn't the job running?"
 
-A clean lint means the sentences are short and the markers are accounted for. It doesn't mean the ticket is good. Steps 3 and 4 decide that.
+Some text stays exactly as written: code, commands, paths, flags, identifiers, error text and other quotations. Numbers and the terms of the project and the field (API, CI, PR) also stay. Put code in backticks.
 
-## Example of a rewrite
+## Evidence
+
+In your own writing, each bullet in What is known starts with one label:
+
+- **Verified:** you checked it. Name or link the check.
+- **Observed:** you saw it happen, but did not check it.
+- **Reported:** someone said so. Name who.
+- **Inferred:** you reasoned it from evidence. Name the evidence.
+- **Unknown:** an open question that matters for the work.
+
+In a rewrite, a bullet gets a label only when the source says how the claim is known:
+
+| The source says | Label |
+|---|---|
+| "confirmed by" a named check | Verified |
+| "we measured", "the log shows" | Observed |
+| "X says", "X reported" | Reported, and name X |
+| "likely", "probably", "we think", "that's inference" | Inferred |
+| "it is unknown whether", "unclear if" | Unknown |
+| a marker such as [V] | the word that the marker stands for |
+
+A claim that the source states with no word from the left column stays a plain bullet. If one source sentence holds two kinds of claim, make one bullet for each label.
+
+## Rewriting
+
+- Each claim keeps its hedge ("may", "likely", "only"), condition, scope, source, number and link, with the same force. Keep "only" next to the word that it limits.
+- When you split a sentence, repeat its label, hedge, condition and source on each piece.
+- If a word has two possible meanings and the source does not show which, keep the word.
+- Every claim, step, status, label and actor comes from the source. Put what you could not resolve in your reply, not in the text.
+
+## Check
+
+1. Run `python3 <this skill's folder>/ste_lint.py --strict NEW.md`. Fix each long-sentence, long-paragraph, long-item, semicolon and label finding. A noun-cluster line is a hint. Leave a quotation as it is, even when the lint flags it.
+2. For a rewrite, also run `python3 <this skill's folder>/ste_lint.py --strict --compare OLD.md NEW.md`. Put back each item in the "disappeared" list, attached to the same claim.
+3. The lint counts 25 words for every sentence, and it does not check the word rules. Check the 20-word limit and the word rules yourself.
+4. Read the result as someone who wasn't there. State the problem and the done condition in one sentence each. If you cannot, fix the shape.
+
+## Example
 
 Before:
 
@@ -117,15 +91,25 @@ Before:
 After:
 
 > **What to do**
-> 1. Turn off the new compression setting on the backup volume.
-> 2. Check whether the backup is back to its old speed.
+> 1. Turn off the new compression setting of the migration.
 >
-> **If it is still slow:** roll back the storage migration.
+> **If turning the setting off does not help:** roll back the storage migration.
 >
 > **What is known**
 > - Verified: the backup job got slower after the storage migration.
 > - Verified: the disk is 95% full.
-> - Inferred: the migration's new compression setting causes the slowdown.
+> - Inferred: the new compression setting of the migration causes the slowdown.
 > - Unknown: whether turning the setting off restores the old speed.
 
-The source's one label covered both of its first two claims, so both bullets keep it. The source itself called the cause an inference and the fix's effect unknown, so those labels come from it too. "The discussion above" pointed into a thread, but the source's next sentence says what was decided, so the steps say it directly. The source has no done condition, so the rewrite adds none.
+## Common mistakes
+
+| Mistake | Fix |
+|---|---|
+| If/else steps in one numbered list | One **If …:** block for each branch |
+| Done when written as actions ("Record the result.") | A condition ("The result is recorded.") |
+| A label dropped when a sentence is split | Repeat the label on each bullet |
+| "may" changed to "can", or "might cause" to "causes" | Keep the source's hedge |
+| A counter-clause dropped ("but the docs also say so") | Keep it in the bullet for the claim that it limits |
+| A synonym swapped in for variety | Qualify the word |
+| Telegraph style ("Disk full → upload stopped") | A whole sentence with a subject and a verb |
+| A project term "simplified" ("roll back" became "undo") | Keep the term |
